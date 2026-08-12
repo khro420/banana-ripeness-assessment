@@ -1,0 +1,62 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+.streamlit/cache/
+
+# Testing and development caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+.ipynb_checkpoints/
+
+# Build outputs
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# IDE settings
+.vscode/
+.idea/
+*.code-workspace
+
+# Operating-system junk
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Logs and temporary files
+*.log
+*.tmp
+tmp/
+temp/
+
+# Dataset — download separately from Kaggle
+dataset/
+
+# Generated morphology validation exports
+morphology_predictions.csv
+morphology_validation_*.csv
+
+# Generated evaluation folders
+evaluation_exports/
+exported_results/
+
+# Keep latest_evaluation.json tracked if the dashboard
+# should display the latest result immediately after cloning.
