@@ -1,0 +1,344 @@
+{
+  "schema_version": 2,
+  "status": "Evaluation completed for Morphology and HSV.",
+  "generated_at": "2026-08-13T22:25:37+08:00",
+  "dataset_split": "test",
+  "dataset_directory": "dataset/test",
+  "image_count": 562,
+  "successful_images": 544,
+  "failed_images": 18,
+  "class_counts": {
+    "Unripe": 110,
+    "Ripe": 154,
+    "Overripe": 113,
+    "Rotten": 185
+  },
+  "methods": {
+    "morphology": {
+      "method_key": "morphology",
+      "approach": "Morphology",
+      "implemented": true,
+      "status": "Completed with 18 failures",
+      "overall_accuracy": 0.5800711743772242,
+      "macro_f1": 0.5979299502006031,
+      "average_processing_time_ms": 537.3422962653176,
+      "successful_images": 544,
+      "failed_images": 18,
+      "per_class": {
+        "Unripe": {
+          "precision": 0.47413793103448276,
+          "recall": 0.5,
+          "f1": 0.48672566371681414,
+          "support": 110
+        },
+        "Ripe": {
+          "precision": 0.46,
+          "recall": 0.5974025974025974,
+          "f1": 0.519774011299435,
+          "support": 154
+        },
+        "Overripe": {
+          "precision": 0.8210526315789474,
+          "recall": 0.6902654867256637,
+          "f1": 0.75,
+          "support": 113
+        },
+        "Rotten": {
+          "precision": 0.7593984962406015,
+          "recall": 0.5459459459459459,
+          "f1": 0.6352201257861635,
+          "support": 185
+        }
+      },
+      "confusion_matrix": {
+        "actual_labels": [
+          "Unripe",
+          "Ripe",
+          "Overripe",
+          "Rotten"
+        ],
+        "predicted_labels": [
+          "Unripe",
+          "Ripe",
+          "Overripe",
+          "Rotten",
+          "Failed"
+        ],
+        "values": [
+          [
+            55,
+            53,
+            0,
+            2,
+            0
+          ],
+          [
+            35,
+            92,
+            0,
+            14,
+            13
+          ],
+          [
+            10,
+            9,
+            78,
+            16,
+            0
+          ],
+          [
+            16,
+            46,
+            17,
+            101,
+            5
+          ]
+        ]
+      }
+    },
+    "hsv": {
+      "method_key": "hsv",
+      "approach": "HSV",
+      "implemented": true,
+      "status": "Completed with 18 failures",
+      "overall_accuracy": 0.7793594306049823,
+      "macro_f1": 0.7986378042010753,
+      "average_processing_time_ms": 532.6656555174643,
+      "successful_images": 544,
+      "failed_images": 18,
+      "per_class": {
+        "Unripe": {
+          "precision": 0.979381443298969,
+          "recall": 0.8636363636363636,
+          "f1": 0.9178743961352657,
+          "support": 110
+        },
+        "Ripe": {
+          "precision": 0.7579617834394905,
+          "recall": 0.7727272727272727,
+          "f1": 0.7652733118971061,
+          "support": 154
+        },
+        "Overripe": {
+          "precision": 0.7217391304347827,
+          "recall": 0.7345132743362832,
+          "f1": 0.7280701754385965,
+          "support": 113
+        },
+        "Rotten": {
+          "precision": 0.8057142857142857,
+          "recall": 0.7621621621621621,
+          "f1": 0.7833333333333333,
+          "support": 185
+        }
+      },
+      "confusion_matrix": {
+        "actual_labels": [
+          "Unripe",
+          "Ripe",
+          "Overripe",
+          "Rotten"
+        ],
+        "predicted_labels": [
+          "Unripe",
+          "Ripe",
+          "Overripe",
+          "Rotten",
+          "Failed"
+        ],
+        "values": [
+          [
+            95,
+            6,
+            0,
+            9,
+            0
+          ],
+          [
+            0,
+            119,
+            8,
+            14,
+            13
+          ],
+          [
+            0,
+            19,
+            83,
+            11,
+            0
+          ],
+          [
+            2,
+            13,
+            24,
+            141,
+            5
+          ]
+        ]
+      }
+    },
+    "kmeans": {
+      "method_key": "kmeans",
+      "approach": "K-means",
+      "implemented": false,
+      "status": "Not implemented",
+      "overall_accuracy": null,
+      "macro_f1": null,
+      "average_processing_time_ms": null,
+      "successful_images": null,
+      "failed_images": null,
+      "per_class": {
+        "Unripe": {
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": null
+        },
+        "Ripe": {
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": null
+        },
+        "Overripe": {
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": null
+        },
+        "Rotten": {
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": null
+        }
+      },
+      "confusion_matrix": null
+    },
+    "glcm": {
+      "method_key": "glcm",
+      "approach": "GLCM Texture",
+      "implemented": false,
+      "status": "Not implemented",
+      "overall_accuracy": null,
+      "macro_f1": null,
+      "average_processing_time_ms": null,
+      "successful_images": null,
+      "failed_images": null,
+      "per_class": {
+        "Unripe": {
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": null
+        },
+        "Ripe": {
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": null
+        },
+        "Overripe": {
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": null
+        },
+        "Rotten": {
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": null
+        }
+      },
+      "confusion_matrix": null
+    },
+    "hybrid": {
+      "method_key": "hybrid",
+      "approach": "Hybrid",
+      "implemented": false,
+      "status": "Not implemented",
+      "overall_accuracy": null,
+      "macro_f1": null,
+      "average_processing_time_ms": null,
+      "successful_images": null,
+      "failed_images": null,
+      "per_class": {
+        "Unripe": {
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": null
+        },
+        "Ripe": {
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": null
+        },
+        "Overripe": {
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": null
+        },
+        "Rotten": {
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": null
+        }
+      },
+      "confusion_matrix": null
+    }
+  },
+  "predictions_file": "outputs\\evaluation_results\\evaluation_predictions.csv",
+  "configuration": {
+    "morphology_parameters": {
+      "gaussian_kernel_size": 5,
+      "blackhat_kernel_size": 21,
+      "blackhat_threshold": 15,
+      "absolute_dark_threshold": 75,
+      "local_dark_intensity_ceiling": 115,
+      "opening_kernel_size": 3,
+      "closing_kernel_size": 5,
+      "minimum_component_area_ratio": 0.0003,
+      "spread_grid_size": 5,
+      "spread_cell_dark_ratio": 0.05,
+      "minimum_grid_banana_ratio": 0.01
+    },
+    "morphology_ripeness_bands": {
+      "unripe_max_total_dark_percent": 9.0,
+      "rotten_min_total_dark_percent": 26.0,
+      "overripe_min_total_dark_percent": 42.5,
+      "overripe_min_spread_percent": 100.0
+    },
+    "hsv_parameters": {
+      "green_hue_min": 35,
+      "green_hue_max": 85,
+      "green_saturation_min": 35,
+      "green_value_min": 35,
+      "yellow_hue_min": 18,
+      "yellow_hue_max": 34,
+      "yellow_saturation_min": 35,
+      "yellow_value_min": 70,
+      "brown_hue_min": 5,
+      "brown_hue_max": 17,
+      "brown_saturation_min": 35,
+      "brown_value_min": 35,
+      "brown_value_max": 180,
+      "dark_value_max": 70
+    },
+    "hsv_ripeness_bands": {
+      "unripe_min_green_percent": 50.0,
+      "unripe_max_brown_percent": 0.5,
+      "ripe_min_yellow_percent": 75.0,
+      "ripe_max_brown_percent": 7.5,
+      "ripe_secondary_min_yellow_percent": 54.0,
+      "ripe_secondary_max_brown_percent": 6.0,
+      "overripe_min_dark_percent": 22.5,
+      "overripe_max_other_percent": 23.5
+    }
+  }
+}

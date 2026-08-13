@@ -298,7 +298,7 @@ else:
 
     st.caption(
         "The Failed column contains images where preprocessing, "
-        "banana segmentation or morphology analysis could not return "
+        "banana segmentation, or the selected method could not return "
         "a prediction."
     )
 
@@ -353,7 +353,7 @@ with download_columns[1]:
                 "Download image predictions",
                 data=predictions_path.read_bytes(),
                 file_name=(
-                    "morphology_predictions.csv"
+                    "evaluation_predictions.csv"
                 ),
                 mime="text/csv",
                 use_container_width=True,

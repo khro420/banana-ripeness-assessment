@@ -16,6 +16,11 @@ from sklearn.metrics import (
     precision_recall_fscore_support,
 )
 
+from branches.hsv.hsv_analysis import (
+    HSVRipenessBands,
+    analyse_hsv,
+)
+from branches.hsv.hsv_segmentation import HSVParameters
 from branches.morphology.morphology_analysis import (
     RipenessBands,
     analyse_morphology,
@@ -43,7 +48,7 @@ LATEST_RESULT_FILE = (
 
 PREDICTION_FILE = (
     RESULT_DIRECTORY
-    / "morphology_predictions.csv"
+    / "evaluation_predictions.csv"
 )
 
 CATEGORIES = (
@@ -124,18 +129,23 @@ def _empty_method_result(
 def create_empty_evaluation() -> dict[str, Any]:
     """Return an empty dashboard report without fabricated values."""
 
+    implemented_methods = {
+        "morphology",
+        "hsv",
+    }
+
     methods = {
         method_key: _empty_method_result(
             method_key=method_key,
             implemented=(
-                method_key == "morphology"
+                method_key in implemented_methods
             ),
         )
         for method_key in METHODS
     }
 
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "status": "No evaluation has been run.",
         "generated_at": None,
         "dataset_split": "test",
@@ -171,7 +181,6 @@ def load_latest_evaluation() -> dict[str, Any]:
         report["status"] = (
             "The saved evaluation report could not be read."
         )
-
         return report
 
 
@@ -186,9 +195,7 @@ def _discover_test_images() -> list[dict[str, Any]]:
     discovered_images: list[dict[str, Any]] = []
 
     for folder_name, category in FOLDER_TO_CATEGORY.items():
-        category_directory = (
-            TEST_DIRECTORY / folder_name
-        )
+        category_directory = TEST_DIRECTORY / folder_name
 
         if not category_directory.exists():
             raise EvaluationError(
@@ -232,12 +239,9 @@ def _open_rgb_image(image_path: Path) -> Image.Image:
 
     try:
         with Image.open(image_path) as opened_image:
-            image = ImageOps.exif_transpose(
-                opened_image
-            )
+            image = ImageOps.exif_transpose(opened_image)
             image = image.convert("RGB")
             image.load()
-
             return image.copy()
 
     except (
@@ -250,43 +254,66 @@ def _open_rgb_image(image_path: Path) -> Image.Image:
         ) from error
 
 
-def _evaluate_morphology_image(
+def _new_record(
     image_path: Path,
     actual_category: str,
-    parameters: MorphologyParameters,
-    bands: RipenessBands,
 ) -> dict[str, Any]:
-    """Evaluate morphology on one labelled image."""
-
     relative_path = str(
         image_path.relative_to(PROJECT_ROOT)
     )
 
-    record = {
+    return {
         "image_path": relative_path,
         "actual_category": actual_category,
-        "predicted_category": "Failed",
-        "correct": False,
-        "confidence_percent": None,
-        "blemish_percentage": None,
         "preprocessing_time_ms": None,
         "segmentation_time_ms": None,
+        "shared_status": "Failed",
+        "shared_error": None,
+
+        "morphology_predicted_category": "Failed",
+        "morphology_correct": False,
+        "morphology_confidence_percent": None,
+        "blemish_percentage": None,
         "morphology_time_ms": None,
-        "total_processing_time_ms": None,
-        "status": "Failed",
-        "error": None,
+        "morphology_total_processing_time_ms": None,
+        "morphology_status": "Failed",
+        "morphology_error": None,
+
+        "hsv_predicted_category": "Failed",
+        "hsv_correct": False,
+        "hsv_confidence_percent": None,
+        "green_percentage": None,
+        "yellow_percentage": None,
+        "brown_percentage": None,
+        "dark_percentage": None,
+        "deteriorated_percentage": None,
+        "other_percentage": None,
+        "hsv_time_ms": None,
+        "hsv_total_processing_time_ms": None,
+        "hsv_status": "Failed",
+        "hsv_error": None,
     }
 
-    processing_start = None
+
+def _evaluate_image(
+    image_path: Path,
+    actual_category: str,
+    morphology_parameters: MorphologyParameters,
+    morphology_bands: RipenessBands,
+    hsv_parameters: HSVParameters,
+    hsv_bands: HSVRipenessBands,
+) -> dict[str, Any]:
+    """Evaluate all currently implemented methods on one image."""
+
+    record = _new_record(
+        image_path=image_path,
+        actual_category=actual_category,
+    )
 
     try:
-        # Disk-reading time is intentionally excluded.
         image = _open_rgb_image(image_path)
 
-        processing_start = perf_counter()
-
         preprocessing_start = perf_counter()
-
         prepared = standardise_image(
             image=image,
             upload_metadata={
@@ -294,98 +321,135 @@ def _evaluate_morphology_image(
             },
             target_size=(416, 416),
         )
-
-        record["preprocessing_time_ms"] = (
+        preprocessing_time_ms = (
             perf_counter() - preprocessing_start
         ) * 1000.0
+        record["preprocessing_time_ms"] = preprocessing_time_ms
 
         segmentation_start = perf_counter()
-
         banana_segmentation = segment_banana(
             rgb_image=prepared.working_rgb,
             content_mask=prepared.content_mask,
         )
-
-        record["segmentation_time_ms"] = (
+        segmentation_time_ms = (
             perf_counter() - segmentation_start
         ) * 1000.0
+        record["segmentation_time_ms"] = segmentation_time_ms
+
+        shared_time_ms = (
+            preprocessing_time_ms
+            + segmentation_time_ms
+        )
 
         if not banana_segmentation.success:
-            record["error"] = (
+            message = (
                 "Banana segmentation failed: "
                 f"{banana_segmentation.message}"
             )
-
-            record["total_processing_time_ms"] = (
-                perf_counter() - processing_start
-            ) * 1000.0
-
+            record["shared_error"] = message
+            record["morphology_error"] = message
+            record["hsv_error"] = message
+            record["morphology_total_processing_time_ms"] = shared_time_ms
+            record["hsv_total_processing_time_ms"] = shared_time_ms
             return record
 
-        analysis = analyse_morphology(
-            rgb_image=prepared.working_rgb,
+        record["shared_status"] = "Completed"
 
-            # The complete banana, including its tips.
-            banana_mask=(
-                banana_segmentation.final_mask
-            ),
+        # Morphology analysis
+        try:
+            morphology = analyse_morphology(
+                rgb_image=prepared.working_rgb,
+                banana_mask=banana_segmentation.final_mask,
+                parameters=morphology_parameters,
+                bands=morphology_bands,
+            )
 
-            parameters=parameters,
-            bands=bands,
-        )
+            record.update(
+                {
+                    "morphology_predicted_category": morphology.predicted_category,
+                    "morphology_correct": (
+                        morphology.predicted_category
+                        == actual_category
+                    ),
+                    "morphology_confidence_percent": morphology.confidence_percent,
+                    "blemish_percentage": morphology.blemish_percentage,
+                    "morphology_time_ms": morphology.processing_time_ms,
+                    "morphology_total_processing_time_ms": (
+                        shared_time_ms
+                        + morphology.processing_time_ms
+                    ),
+                    "morphology_status": "Completed",
+                    "morphology_error": None,
+                }
+            )
 
-        record.update(
-            {
-                "predicted_category": (
-                    analysis.predicted_category
-                ),
-                "correct": (
-                    analysis.predicted_category
-                    == actual_category
-                ),
-                "confidence_percent": (
-                    analysis.confidence_percent
-                ),
-                "blemish_percentage": (
-                    analysis.blemish_percentage
-                ),
-                "morphology_time_ms": (
-                    analysis.processing_time_ms
-                ),
-                "status": "Completed",
-                "error": None,
-            }
-        )
+        except Exception as error:
+            record["morphology_error"] = str(error)
+            record["morphology_total_processing_time_ms"] = shared_time_ms
 
-        record["total_processing_time_ms"] = (
-            perf_counter() - processing_start
-        ) * 1000.0
+        # HSV analysis
+        try:
+            hsv = analyse_hsv(
+                rgb_image=prepared.working_rgb,
+                banana_mask=banana_segmentation.final_mask,
+                parameters=hsv_parameters,
+                bands=hsv_bands,
+            )
+
+            record.update(
+                {
+                    "hsv_predicted_category": hsv.predicted_category,
+                    "hsv_correct": (
+                        hsv.predicted_category
+                        == actual_category
+                    ),
+                    "hsv_confidence_percent": hsv.confidence_percent,
+                    "green_percentage": hsv.green_percentage,
+                    "yellow_percentage": hsv.yellow_percentage,
+                    "brown_percentage": hsv.brown_percentage,
+                    "dark_percentage": hsv.dark_percentage,
+                    "deteriorated_percentage": hsv.deteriorated_percentage,
+                    "other_percentage": hsv.other_percentage,
+                    "hsv_time_ms": hsv.processing_time_ms,
+                    "hsv_total_processing_time_ms": (
+                        shared_time_ms
+                        + hsv.processing_time_ms
+                    ),
+                    "hsv_status": "Completed",
+                    "hsv_error": None,
+                }
+            )
+
+        except Exception as error:
+            record["hsv_error"] = str(error)
+            record["hsv_total_processing_time_ms"] = shared_time_ms
 
         return record
 
     except Exception as error:
-        record["error"] = str(error)
-
-        if processing_start is not None:
-            record["total_processing_time_ms"] = (
-                perf_counter() - processing_start
-            ) * 1000.0
-
+        message = str(error)
+        record["shared_error"] = message
+        record["morphology_error"] = message
+        record["hsv_error"] = message
         return record
 
 
-def _calculate_morphology_metrics(
+def _calculate_method_metrics(
     records: list[dict[str, Any]],
+    method_key: str,
 ) -> dict[str, Any]:
-    """Calculate metrics while counting failures as incorrect."""
+    """Calculate metrics while counting method failures as incorrect."""
+
+    predicted_field = f"{method_key}_predicted_category"
+    status_field = f"{method_key}_status"
+    time_field = f"{method_key}_total_processing_time_ms"
 
     actual_values = [
         record["actual_category"]
         for record in records
     ]
-
     predicted_values = [
-        record["predicted_category"]
+        record[predicted_field]
         for record in records
     ]
 
@@ -411,7 +475,6 @@ def _calculate_morphology_metrics(
         zero_division=0,
     )
 
-    # A fifth predicted column exposes processing failures.
     predicted_labels = [
         *CATEGORIES,
         "Failed",
@@ -423,14 +486,12 @@ def _calculate_morphology_metrics(
         labels=predicted_labels,
     )
 
-    # Actual labels are always one of the four real categories.
     outcome_matrix = full_matrix[
         :len(CATEGORIES),
         :,
     ]
 
     per_class = {}
-
     for index, category in enumerate(CATEGORIES):
         per_class[category] = {
             "precision": float(precision[index]),
@@ -440,35 +501,27 @@ def _calculate_morphology_metrics(
         }
 
     measured_times = [
-        float(
-            record["total_processing_time_ms"]
-        )
+        float(record[time_field])
         for record in records
-        if (
-            record["total_processing_time_ms"]
-            is not None
-        )
+        if record[time_field] is not None
     ]
 
     successful_count = sum(
-        record["status"] == "Completed"
+        record[status_field] == "Completed"
         for record in records
     )
-
     failed_count = len(records) - successful_count
 
     return {
-        "method_key": "morphology",
-        "approach": METHODS["morphology"],
+        "method_key": method_key,
+        "approach": METHODS[method_key],
         "implemented": True,
         "status": (
             "Completed"
             if failed_count == 0
             else f"Completed with {failed_count} failures"
         ),
-        "overall_accuracy": float(
-            overall_accuracy
-        ),
+        "overall_accuracy": float(overall_accuracy),
         "macro_f1": float(macro_f1),
         "average_processing_time_ms": (
             float(np.mean(measured_times))
@@ -494,20 +547,7 @@ def _save_predictions(
         exist_ok=True,
     )
 
-    fieldnames = [
-        "image_path",
-        "actual_category",
-        "predicted_category",
-        "correct",
-        "confidence_percent",
-        "blemish_percentage",
-        "preprocessing_time_ms",
-        "segmentation_time_ms",
-        "morphology_time_ms",
-        "total_processing_time_ms",
-        "status",
-        "error",
-    ]
+    fieldnames = list(records[0].keys()) if records else []
 
     with PREDICTION_FILE.open(
         "w",
@@ -518,7 +558,6 @@ def _save_predictions(
             file,
             fieldnames=fieldnames,
         )
-
         writer.writeheader()
         writer.writerows(records)
 
@@ -546,42 +585,40 @@ def _save_report(report: dict[str, Any]) -> None:
             ensure_ascii=False,
         )
 
-    temporary_file.replace(
-        LATEST_RESULT_FILE
-    )
+    temporary_file.replace(LATEST_RESULT_FILE)
 
 
 def run_fixed_dataset_evaluation(
     progress_callback: ProgressCallback | None = None,
 ) -> dict[str, Any]:
     """
-    Evaluate the current morphology implementation on dataset/test.
+    Evaluate Morphology and frozen HSV on dataset/test.
 
-    Other approaches remain explicitly unimplemented and empty.
+    HSV thresholds must not be changed after test results are viewed.
     """
 
     discovered_images = _discover_test_images()
 
-    parameters = MorphologyParameters()
-    bands = RipenessBands()
+    morphology_parameters = MorphologyParameters()
+    morphology_bands = RipenessBands()
+    hsv_parameters = HSVParameters()
+    hsv_bands = HSVRipenessBands()
 
     records = []
-
     total_images = len(discovered_images)
 
     for index, item in enumerate(
         discovered_images,
         start=1,
     ):
-        record = _evaluate_morphology_image(
+        record = _evaluate_image(
             image_path=item["path"],
-            actual_category=item[
-                "actual_category"
-            ],
-            parameters=parameters,
-            bands=bands,
+            actual_category=item["actual_category"],
+            morphology_parameters=morphology_parameters,
+            morphology_bands=morphology_bands,
+            hsv_parameters=hsv_parameters,
+            hsv_bands=hsv_bands,
         )
-
         records.append(record)
 
         if progress_callback is not None:
@@ -594,16 +631,18 @@ def run_fixed_dataset_evaluation(
                 ),
             )
 
-    morphology_metrics = (
-        _calculate_morphology_metrics(records)
+    morphology_metrics = _calculate_method_metrics(
+        records=records,
+        method_key="morphology",
+    )
+    hsv_metrics = _calculate_method_metrics(
+        records=records,
+        method_key="hsv",
     )
 
     methods = {
         "morphology": morphology_metrics,
-        "hsv": _empty_method_result(
-            "hsv",
-            implemented=False,
-        ),
+        "hsv": hsv_metrics,
         "kmeans": _empty_method_result(
             "kmeans",
             implemented=False,
@@ -626,9 +665,18 @@ def run_fixed_dataset_evaluation(
         for category in CATEGORIES
     }
 
+    successful_images = sum(
+        record["morphology_status"] == "Completed"
+        and record["hsv_status"] == "Completed"
+        for record in records
+    )
+    failed_images = len(records) - successful_images
+
     report = {
-        "schema_version": 1,
-        "status": "Evaluation completed.",
+        "schema_version": 2,
+        "status": (
+            "Evaluation completed for Morphology and HSV."
+        ),
         "generated_at": (
             datetime.now()
             .astimezone()
@@ -637,24 +685,26 @@ def run_fixed_dataset_evaluation(
         "dataset_split": "test",
         "dataset_directory": "dataset/test",
         "image_count": len(records),
-        "successful_images": (
-            morphology_metrics["successful_images"]
-        ),
-        "failed_images": (
-            morphology_metrics["failed_images"]
-        ),
+        "successful_images": successful_images,
+        "failed_images": failed_images,
         "class_counts": class_counts,
         "methods": methods,
         "predictions_file": str(
-            PREDICTION_FILE.relative_to(
-                PROJECT_ROOT
-            )
+            PREDICTION_FILE.relative_to(PROJECT_ROOT)
         ),
         "configuration": {
             "morphology_parameters": asdict(
-                parameters
+                morphology_parameters
             ),
-            "ripeness_bands": asdict(bands),
+            "morphology_ripeness_bands": asdict(
+                morphology_bands
+            ),
+            "hsv_parameters": asdict(
+                hsv_parameters
+            ),
+            "hsv_ripeness_bands": asdict(
+                hsv_bands
+            ),
         },
     }
 
