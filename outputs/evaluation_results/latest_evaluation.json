@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "status": "Evaluation completed for Morphology and HSV.",
-  "generated_at": "2026-08-13T22:25:37+08:00",
+  "generated_at": "2026-08-14T01:35:12+08:00",
   "dataset_split": "test",
   "dataset_directory": "dataset/test",
   "image_count": 562,
@@ -21,7 +21,7 @@
       "status": "Completed with 18 failures",
       "overall_accuracy": 0.5800711743772242,
       "macro_f1": 0.5979299502006031,
-      "average_processing_time_ms": 537.3422962653176,
+      "average_processing_time_ms": 536.6342859428141,
       "successful_images": 544,
       "failed_images": 18,
       "per_class": {
@@ -103,7 +103,7 @@
       "status": "Completed with 18 failures",
       "overall_accuracy": 0.7793594306049823,
       "macro_f1": 0.7986378042010753,
-      "average_processing_time_ms": 532.6656555174643,
+      "average_processing_time_ms": 532.0519147689572,
       "successful_images": 544,
       "failed_images": 18,
       "per_class": {
@@ -332,7 +332,7 @@
     },
     "hsv_ripeness_bands": {
       "unripe_min_green_percent": 50.0,
-      "unripe_max_brown_percent": 0.5,
+      "unripe_max_brown_percent": 1.0,
       "ripe_min_yellow_percent": 75.0,
       "ripe_max_brown_percent": 7.5,
       "ripe_secondary_min_yellow_percent": 54.0,
