@@ -4,7 +4,6 @@ from typing import Any
 import cv2
 import numpy as np
 
-
 @dataclass
 class SegmentationResult:
     """Outputs from the shared banana segmentation pipeline."""

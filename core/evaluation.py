@@ -16,6 +16,15 @@ from sklearn.metrics import (
     precision_recall_fscore_support,
 )
 
+from branches.kmeans.kmeans_analysis import (
+    KMeansRipenessBands,
+    analyse_kmeans,
+)
+
+from branches.kmeans.kmeans_segmentation import (
+    KMeansParameters,
+)
+
 from branches.hsv.hsv_analysis import (
     HSVRipenessBands,
     analyse_hsv,
@@ -132,6 +141,7 @@ def create_empty_evaluation() -> dict[str, Any]:
     implemented_methods = {
         "morphology",
         "hsv",
+        "kmeans",
     }
 
     methods = {
@@ -292,6 +302,14 @@ def _new_record(
         "hsv_total_processing_time_ms": None,
         "hsv_status": "Failed",
         "hsv_error": None,
+
+        "kmeans_predicted_category": "Failed",
+        "kmeans_correct": False,
+        "kmeans_confidence_percent": None,
+        "kmeans_time_ms": None,
+        "kmeans_total_processing_time_ms": None,
+        "kmeans_status": "Failed",
+        "kmeans_error": None,
     }
 
 
@@ -302,6 +320,8 @@ def _evaluate_image(
     morphology_bands: RipenessBands,
     hsv_parameters: HSVParameters,
     hsv_bands: HSVRipenessBands,
+    kmeans_parameters: KMeansParameters,
+    kmeans_bands: KMeansRipenessBands,
 ) -> dict[str, Any]:
     """Evaluate all currently implemented methods on one image."""
 
@@ -349,8 +369,11 @@ def _evaluate_image(
             record["shared_error"] = message
             record["morphology_error"] = message
             record["hsv_error"] = message
+            record["kmeans_error"] = message
             record["morphology_total_processing_time_ms"] = shared_time_ms
             record["hsv_total_processing_time_ms"] = shared_time_ms
+            record["kmeans_total_processing_time_ms"] = shared_time_ms
+
             return record
 
         record["shared_status"] = "Completed"
@@ -424,6 +447,35 @@ def _evaluate_image(
             record["hsv_error"] = str(error)
             record["hsv_total_processing_time_ms"] = shared_time_ms
 
+        # K-means analysis
+        try:
+            kmeans = analyse_kmeans(
+                rgb_image=prepared.working_rgb,
+                banana_mask=banana_segmentation.final_mask,
+                parameters=kmeans_parameters,
+                bands=kmeans_bands,
+            )
+
+            record.update(
+                {
+                    "kmeans_predicted_category": kmeans.predicted_category,
+                    "kmeans_correct": (
+                        kmeans.predicted_category == actual_category
+                    ),
+                    "kmeans_confidence_percent": kmeans.confidence_percent,
+                    "kmeans_time_ms": kmeans.processing_time_ms,
+                    "kmeans_total_processing_time_ms": (
+                        shared_time_ms + kmeans.processing_time_ms
+                    ),
+                    "kmeans_status": "Completed",
+                    "kmeans_error": None,
+                }
+            )
+
+        except Exception as error:
+            record["kmeans_error"] = str(error)
+            record["kmeans_total_processing_time_ms"] = shared_time_ms
+
         return record
 
     except Exception as error:
@@ -431,6 +483,7 @@ def _evaluate_image(
         record["shared_error"] = message
         record["morphology_error"] = message
         record["hsv_error"] = message
+        record["kmeans_error"] = message
         return record
 
 
@@ -592,9 +645,9 @@ def run_fixed_dataset_evaluation(
     progress_callback: ProgressCallback | None = None,
 ) -> dict[str, Any]:
     """
-    Evaluate Morphology and frozen HSV on dataset/test.
+    Evaluate Morphology, HSV and K-means on dataset/test.
 
-    HSV thresholds must not be changed after test results are viewed.
+    Decision thresholds should remain frozen during final test evaluation.
     """
 
     discovered_images = _discover_test_images()
@@ -603,6 +656,8 @@ def run_fixed_dataset_evaluation(
     morphology_bands = RipenessBands()
     hsv_parameters = HSVParameters()
     hsv_bands = HSVRipenessBands()
+    kmeans_parameters = KMeansParameters()
+    kmeans_bands = KMeansRipenessBands()
 
     records = []
     total_images = len(discovered_images)
@@ -618,6 +673,8 @@ def run_fixed_dataset_evaluation(
             morphology_bands=morphology_bands,
             hsv_parameters=hsv_parameters,
             hsv_bands=hsv_bands,
+            kmeans_parameters=kmeans_parameters,
+            kmeans_bands=kmeans_bands,
         )
         records.append(record)
 
@@ -640,13 +697,15 @@ def run_fixed_dataset_evaluation(
         method_key="hsv",
     )
 
+    kmeans_metrics = _calculate_method_metrics(
+        records=records,
+        method_key="kmeans",
+    )
+
     methods = {
         "morphology": morphology_metrics,
         "hsv": hsv_metrics,
-        "kmeans": _empty_method_result(
-            "kmeans",
-            implemented=False,
-        ),
+        "kmeans": kmeans_metrics,
         "glcm": _empty_method_result(
             "glcm",
             implemented=False,
@@ -668,6 +727,7 @@ def run_fixed_dataset_evaluation(
     successful_images = sum(
         record["morphology_status"] == "Completed"
         and record["hsv_status"] == "Completed"
+        and record["kmeans_status"] == "Completed"
         for record in records
     )
     failed_images = len(records) - successful_images
@@ -675,7 +735,7 @@ def run_fixed_dataset_evaluation(
     report = {
         "schema_version": 2,
         "status": (
-            "Evaluation completed for Morphology and HSV."
+            "Evaluation completed for Morphology, HSV and K-means."
         ),
         "generated_at": (
             datetime.now()
@@ -704,6 +764,12 @@ def run_fixed_dataset_evaluation(
             ),
             "hsv_ripeness_bands": asdict(
                 hsv_bands
+            ),
+            "kmeans_parameters": asdict(
+                kmeans_parameters
+            ),
+            "kmeans_ripeness_bands": asdict(
+                kmeans_bands
             ),
         },
     }

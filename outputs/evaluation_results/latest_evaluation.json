@@ -1,12 +1,12 @@
 {
   "schema_version": 2,
-  "status": "Evaluation completed for Morphology and HSV.",
-  "generated_at": "2026-08-13T22:25:37+08:00",
+  "status": "Evaluation completed for Morphology, HSV and K-means.",
+  "generated_at": "2026-08-21T00:30:51+08:00",
   "dataset_split": "test",
   "dataset_directory": "dataset/test",
   "image_count": 562,
-  "successful_images": 544,
-  "failed_images": 18,
+  "successful_images": 545,
+  "failed_images": 17,
   "class_counts": {
     "Unripe": 110,
     "Ripe": 154,
@@ -18,35 +18,35 @@
       "method_key": "morphology",
       "approach": "Morphology",
       "implemented": true,
-      "status": "Completed with 18 failures",
-      "overall_accuracy": 0.5800711743772242,
-      "macro_f1": 0.5979299502006031,
-      "average_processing_time_ms": 537.3422962653176,
-      "successful_images": 544,
-      "failed_images": 18,
+      "status": "Completed with 17 failures",
+      "overall_accuracy": 0.5765124555160143,
+      "macro_f1": 0.5946918965521327,
+      "average_processing_time_ms": 211.04296023238226,
+      "successful_images": 545,
+      "failed_images": 17,
       "per_class": {
         "Unripe": {
-          "precision": 0.47413793103448276,
-          "recall": 0.5,
-          "f1": 0.48672566371681414,
+          "precision": 0.47058823529411764,
+          "recall": 0.509090909090909,
+          "f1": 0.4890829694323144,
           "support": 110
         },
         "Ripe": {
-          "precision": 0.46,
-          "recall": 0.5974025974025974,
-          "f1": 0.519774011299435,
+          "precision": 0.45408163265306123,
+          "recall": 0.577922077922078,
+          "f1": 0.5085714285714286,
           "support": 154
         },
         "Overripe": {
-          "precision": 0.8210526315789474,
-          "recall": 0.6902654867256637,
-          "f1": 0.75,
+          "precision": 0.8279569892473119,
+          "recall": 0.6814159292035398,
+          "f1": 0.7475728155339806,
           "support": 113
         },
         "Rotten": {
-          "precision": 0.7593984962406015,
-          "recall": 0.5459459459459459,
-          "f1": 0.6352201257861635,
+          "precision": 0.7445255474452555,
+          "recall": 0.5513513513513514,
+          "f1": 0.6335403726708074,
           "support": 185
         }
       },
@@ -66,31 +66,31 @@
         ],
         "values": [
           [
-            55,
-            53,
+            56,
+            52,
             0,
             2,
             0
           ],
           [
-            35,
-            92,
+            37,
+            89,
             0,
-            14,
-            13
+            16,
+            12
           ],
           [
             10,
             9,
-            78,
-            16,
+            77,
+            17,
             0
           ],
           [
             16,
             46,
-            17,
-            101,
+            16,
+            102,
             5
           ]
         ]
@@ -100,12 +100,12 @@
       "method_key": "hsv",
       "approach": "HSV",
       "implemented": true,
-      "status": "Completed with 18 failures",
-      "overall_accuracy": 0.7793594306049823,
-      "macro_f1": 0.7986378042010753,
-      "average_processing_time_ms": 532.6656555174643,
-      "successful_images": 544,
-      "failed_images": 18,
+      "status": "Completed with 17 failures",
+      "overall_accuracy": 0.7829181494661922,
+      "macro_f1": 0.8010880881865511,
+      "average_processing_time_ms": 208.15364424958724,
+      "successful_images": 545,
+      "failed_images": 17,
       "per_class": {
         "Unripe": {
           "precision": 0.979381443298969,
@@ -114,9 +114,9 @@
           "support": 110
         },
         "Ripe": {
-          "precision": 0.7579617834394905,
-          "recall": 0.7727272727272727,
-          "f1": 0.7652733118971061,
+          "precision": 0.7643312101910829,
+          "recall": 0.7792207792207793,
+          "f1": 0.7717041800643086,
           "support": 154
         },
         "Overripe": {
@@ -126,9 +126,9 @@
           "support": 113
         },
         "Rotten": {
-          "precision": 0.8057142857142857,
-          "recall": 0.7621621621621621,
-          "f1": 0.7833333333333333,
+          "precision": 0.8068181818181818,
+          "recall": 0.7675675675675676,
+          "f1": 0.7867036011080333,
           "support": 185
         }
       },
@@ -156,10 +156,10 @@
           ],
           [
             0,
-            119,
+            120,
             8,
             14,
-            13
+            12
           ],
           [
             0,
@@ -170,9 +170,9 @@
           ],
           [
             2,
-            13,
+            12,
             24,
-            141,
+            142,
             5
           ]
         ]
@@ -181,40 +181,84 @@
     "kmeans": {
       "method_key": "kmeans",
       "approach": "K-means",
-      "implemented": false,
-      "status": "Not implemented",
-      "overall_accuracy": null,
-      "macro_f1": null,
-      "average_processing_time_ms": null,
-      "successful_images": null,
-      "failed_images": null,
+      "implemented": true,
+      "status": "Completed with 17 failures",
+      "overall_accuracy": 0.48576512455516013,
+      "macro_f1": 0.49368778652292866,
+      "average_processing_time_ms": 261.6153873393007,
+      "successful_images": 545,
+      "failed_images": 17,
       "per_class": {
         "Unripe": {
-          "precision": null,
-          "recall": null,
-          "f1": null,
-          "support": null
+          "precision": 0.96875,
+          "recall": 0.8454545454545455,
+          "f1": 0.9029126213592233,
+          "support": 110
         },
         "Ripe": {
-          "precision": null,
-          "recall": null,
-          "f1": null,
-          "support": null
+          "precision": 0.5458515283842795,
+          "recall": 0.8116883116883117,
+          "f1": 0.6527415143603134,
+          "support": 154
         },
         "Overripe": {
-          "precision": null,
-          "recall": null,
-          "f1": null,
-          "support": null
+          "precision": 0.19626168224299065,
+          "recall": 0.18584070796460178,
+          "f1": 0.19090909090909092,
+          "support": 113
         },
         "Rotten": {
-          "precision": null,
-          "recall": null,
-          "f1": null,
-          "support": null
+          "precision": 0.3008849557522124,
+          "recall": 0.1837837837837838,
+          "f1": 0.22818791946308725,
+          "support": 185
         }
       },
-      "confusion_matrix": null
+      "confusion_matrix": {
+        "actual_labels": [
+          "Unripe",
+          "Ripe",
+          "Overripe",
+          "Rotten"
+        ],
+        "predicted_labels": [
+          "Unripe",
+          "Ripe",
+          "Overripe",
+          "Rotten",
+          "Failed"
+        ],
+        "values": [
+          [
+            93,
+            16,
+            1,
+            0,
+            0
+          ],
+          [
+            1,
+            125,
+            8,
+            8,
+            12
+          ],
+          [
+            0,
+            21,
+            21,
+            71,
+            0
+          ],
+          [
+            2,
+            67,
+            77,
+            34,
+            5
+          ]
+        ]
+      }
     },
     "glcm": {
       "method_key": "glcm",
@@ -293,7 +337,7 @@
       "confusion_matrix": null
     }
   },
-  "predictions_file": "outputs\\evaluation_results\\evaluation_predictions.csv",
+  "predictions_file": "outputs/evaluation_results/evaluation_predictions.csv",
   "configuration": {
     "morphology_parameters": {
       "gaussian_kernel_size": 5,
@@ -332,13 +376,25 @@
     },
     "hsv_ripeness_bands": {
       "unripe_min_green_percent": 50.0,
-      "unripe_max_brown_percent": 0.5,
+      "unripe_max_brown_percent": 1.0,
       "ripe_min_yellow_percent": 75.0,
       "ripe_max_brown_percent": 7.5,
       "ripe_secondary_min_yellow_percent": 54.0,
       "ripe_secondary_max_brown_percent": 6.0,
       "overripe_min_dark_percent": 22.5,
       "overripe_max_other_percent": 23.5
+    },
+    "kmeans_parameters": {
+      "k": 4,
+      "attempts": 10,
+      "max_iterations": 100,
+      "epsilon": 0.2
+    },
+    "kmeans_ripeness_bands": {
+      "unripe_green_score_min": 0.55,
+      "ripe_yellow_score_min": 0.55,
+      "overripe_brown_score_min": 0.18,
+      "rotten_dark_score_min": 0.18
     }
   }
 }
