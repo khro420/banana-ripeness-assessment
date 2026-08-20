@@ -37,6 +37,12 @@ from branches.morphology.morphology_analysis import (
 from branches.morphology.morphology_segmentation import (
     MorphologyParameters,
 )
+
+from branches.glcm.glcm_analysis import (
+    GLCMRipenessBands,
+    analyse_glcm,
+)
+
 from core.banana_segmentation import segment_banana
 from core.image_handling import standardise_image
 
@@ -310,6 +316,14 @@ def _new_record(
         "kmeans_total_processing_time_ms": None,
         "kmeans_status": "Failed",
         "kmeans_error": None,
+
+        "glcm_predicted_category": "Failed",
+        "glcm_correct": False,
+        "glcm_confidence_percent": None,
+        "glcm_time_ms": None,
+        "glcm_total_processing_time_ms": None,
+        "glcm_status": "Failed",
+        "glcm_error": None,
     }
 
 
@@ -322,6 +336,7 @@ def _evaluate_image(
     hsv_bands: HSVRipenessBands,
     kmeans_parameters: KMeansParameters,
     kmeans_bands: KMeansRipenessBands,
+    glcm_bands: GLCMRipenessBands,
 ) -> dict[str, Any]:
     """Evaluate all currently implemented methods on one image."""
 
@@ -370,9 +385,11 @@ def _evaluate_image(
             record["morphology_error"] = message
             record["hsv_error"] = message
             record["kmeans_error"] = message
+            record["glcm_error"] = message
             record["morphology_total_processing_time_ms"] = shared_time_ms
             record["hsv_total_processing_time_ms"] = shared_time_ms
             record["kmeans_total_processing_time_ms"] = shared_time_ms
+            record["glcm_total_processing_time_ms"] = shared_time_ms
 
             return record
 
@@ -476,6 +493,35 @@ def _evaluate_image(
             record["kmeans_error"] = str(error)
             record["kmeans_total_processing_time_ms"] = shared_time_ms
 
+        # GLCM analysis
+        try:
+            glcm = analyse_glcm(
+                rgb_image=prepared.working_rgb,
+                banana_mask=banana_segmentation.final_mask,
+                bands=glcm_bands,
+            )
+
+            record.update(
+                {
+                    "glcm_predicted_category": glcm.predicted_category,
+                    "glcm_correct": (
+                        glcm.predicted_category == actual_category
+                    ),
+                    "glcm_confidence_percent": (
+                        glcm.confidence_percent
+                    ),
+                    "glcm_time_ms": glcm.processing_time_ms,
+                    "glcm_total_processing_time_ms": (
+                        shared_time_ms + glcm.processing_time_ms
+                    ),
+                    "glcm_status": "Completed",
+                    "glcm_error": None,
+                }
+            )
+
+        except Exception as error:
+            record["glcm_error"] = str(error)
+            record["glcm_total_processing_time_ms"] = shared_time_ms
         return record
 
     except Exception as error:
@@ -484,6 +530,7 @@ def _evaluate_image(
         record["morphology_error"] = message
         record["hsv_error"] = message
         record["kmeans_error"] = message
+        record["glcm_error"] = message
         return record
 
 
@@ -658,6 +705,7 @@ def run_fixed_dataset_evaluation(
     hsv_bands = HSVRipenessBands()
     kmeans_parameters = KMeansParameters()
     kmeans_bands = KMeansRipenessBands()
+    glcm_bands = GLCMRipenessBands()
 
     records = []
     total_images = len(discovered_images)
@@ -675,6 +723,7 @@ def run_fixed_dataset_evaluation(
             hsv_bands=hsv_bands,
             kmeans_parameters=kmeans_parameters,
             kmeans_bands=kmeans_bands,
+            glcm_bands=glcm_bands,
         )
         records.append(record)
 
@@ -701,15 +750,16 @@ def run_fixed_dataset_evaluation(
         records=records,
         method_key="kmeans",
     )
+    glcm_metrics = _calculate_method_metrics(
+        records=records,
+        method_key="glcm",
+)
 
     methods = {
         "morphology": morphology_metrics,
         "hsv": hsv_metrics,
         "kmeans": kmeans_metrics,
-        "glcm": _empty_method_result(
-            "glcm",
-            implemented=False,
-        ),
+        "glcm": glcm_metrics,
         "hybrid": _empty_method_result(
             "hybrid",
             implemented=False,
@@ -725,17 +775,18 @@ def run_fixed_dataset_evaluation(
     }
 
     successful_images = sum(
-        record["morphology_status"] == "Completed"
-        and record["hsv_status"] == "Completed"
-        and record["kmeans_status"] == "Completed"
-        for record in records
-    )
+    record["morphology_status"] == "Completed"
+    and record["hsv_status"] == "Completed"
+    and record["kmeans_status"] == "Completed"
+    and record["glcm_status"] == "Completed"
+    for record in records
+)
     failed_images = len(records) - successful_images
 
     report = {
         "schema_version": 2,
         "status": (
-            "Evaluation completed for Morphology, HSV and K-means."
+            "Evaluation completed for Morphology, HSV and K-means and GLCM."
         ),
         "generated_at": (
             datetime.now()
@@ -770,6 +821,9 @@ def run_fixed_dataset_evaluation(
             ),
             "kmeans_ripeness_bands": asdict(
                 kmeans_bands
+            ),
+            "glcm_ripeness_bands": asdict(
+                glcm_bands
             ),
         },
     }
