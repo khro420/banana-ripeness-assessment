@@ -17,46 +17,55 @@ from ui.components import apply_app_styles, page_header
 from ui.result_display import render_result_summary
 
 
-MORPHOLOGY_RESULT_VERSION = 4
+MORPHOLOGY_RESULT_VERSION = 5
 
 
 apply_app_styles()
 page_header(
     "Morphological Dark-Region Analysis",
-    "Classify banana ripeness from total dark area and its spatial spread.",
+    "Classify ripeness from the amount, connectivity and spread of dark peel regions.",
 )
 
 st.info(
-    "Overripe means extensive darkness spread throughout the peel. Rotten "
-    "means substantial darkness that is less widely distributed."
+    "Validation showed that Overripe bananas usually have widespread connected "
+    "darkening. Rotten samples are more variable and frequently contain a more "
+    "fragmented or irregular dark-region pattern."
 )
 st.warning(
-    "Limitation: dark-region morphology cannot reliably separate a spotless "
-    "green banana from a spotless yellow banana. Unripe and Ripe are therefore "
-    "the weakest classes for this approach."
+    "Limitation: morphology still cannot directly see the difference between "
+    "clean green and clean yellow peel. Unripe versus Ripe remains the weakest "
+    "part of this approach."
 )
 
 parameters = MorphologyParameters()
 bands = RipenessBands()
 
-with st.expander("View frozen decision rules"):
+with st.expander("View frozen validation-derived rules"):
     st.markdown(
         f"""
-        Rules are checked in this order:
+        **Later-stage decision**
 
-        1. **Overripe:** total dark area ≥
-           {bands.overripe_min_total_dark_percent:.1f}% and spread ≥
-           {bands.overripe_min_spread_percent:.1f}%.
-        2. **Rotten:** total dark area ≥
-           {bands.rotten_min_total_dark_percent:.1f}% after the Overripe rule.
-        3. **Unripe:** total dark area ≤
-           {bands.unripe_max_total_dark_percent:.1f}%.
-        4. **Ripe:** all remaining cases.
+        - When total darkness is above **{bands.high_total_dark_percent:.1f}%**,
+          predict **Overripe** only when spread is at least
+          **{bands.overripe_min_spread_percent:.1f}%**, the number of dark
+          components is at most **{bands.overripe_max_component_count}**, and
+          the largest patch's mean intensity is at most
+          **{bands.overripe_max_patch_mean_intensity:.0f}/255**.
+        - Otherwise, the high-darkness sample is **Rotten**.
+
+        **Lower-darkness decision**
+
+        - If concentration is at most **{bands.low_concentration_percent:.1f}%**,
+          extreme darkness and connected-component count separate the classes.
+        - If concentration is higher, the dominant patch size and spread are
+          used: **≤ {bands.very_small_patch_percent:.1f}%**, then
+          **≤ {bands.small_patch_percent:.1f}%**, followed by a spread boundary
+          of **{bands.localised_spread_percent:.1f}%**.
         """
     )
     st.caption(
-        "These thresholds were selected using the validation split. Do not "
-        "change them after viewing final test results."
+        "These rules were selected from dataset/valid. Freeze them before the "
+        "final test evaluation; do not tune them using dataset/test."
     )
 
 
@@ -72,7 +81,10 @@ if uploaded_file is None:
     st.stop()
 
 try:
-    prepared_image = prepare_uploaded_image(uploaded_file, target_size=(416, 416))
+    prepared_image = prepare_uploaded_image(
+        uploaded_file,
+        target_size=(416, 416),
+    )
 except ImageValidationError as error:
     st.error(str(error))
     st.stop()
@@ -102,7 +114,9 @@ if st.button("Run morphology analysis", type="primary", use_container_width=True
         except ValueError as error:
             error_message = str(error)
     else:
-        error_message = "Morphology analysis stopped because segmentation failed."
+        error_message = (
+            "Morphology analysis stopped because banana segmentation failed."
+        )
 
     st.session_state["morphology_result"] = {
         "result_version": MORPHOLOGY_RESULT_VERSION,
@@ -143,23 +157,53 @@ if analysis is None:
 render_result_summary(analysis.method_result)
 st.info(analysis.decision_reason)
 st.caption(
-    "The confidence value shows rule support. It is not a learned probability."
+    "Confidence indicates deterministic rule support. It is not a learned "
+    "probability."
 )
 
-metric_columns = st.columns(4)
-metric_columns[0].metric(
+first_metrics = st.columns(4)
+first_metrics[0].metric(
     "Total dark area",
     f"{analysis.total_dark_percentage:.2f}%",
 )
-metric_columns[1].metric(
+first_metrics[1].metric(
+    "Largest dark patch",
+    f"{analysis.largest_dark_patch_percentage:.2f}%",
+)
+first_metrics[2].metric(
+    "Concentration ratio",
+    f"{analysis.concentration_ratio:.2f}%",
+)
+first_metrics[3].metric(
     "Dark-region spread",
     f"{analysis.dark_region_spread:.2f}%",
 )
-metric_columns[2].metric("Surface grade", analysis.surface_grade)
-metric_columns[3].metric(
+
+patch_intensity = (
+    "N/A"
+    if analysis.largest_patch_mean_intensity is None
+    else f"{analysis.largest_patch_mean_intensity:.2f}/255"
+)
+
+second_metrics = st.columns(4)
+second_metrics[0].metric(
+    "Dark components",
+    analysis.dark_component_count,
+)
+second_metrics[1].metric(
+    "Extreme-dark area",
+    f"{analysis.extreme_dark_percentage:.2f}%",
+)
+second_metrics[2].metric(
+    "Largest-patch intensity",
+    patch_intensity,
+)
+second_metrics[3].metric(
     "Morphology time",
     f"{analysis.processing_time_ms:.2f} ms",
 )
+
+st.metric("Surface quality", analysis.surface_grade)
 
 overview_tab, masks_tab, rules_tab = st.tabs(
     ["Overview", "Morphology masks", "Decision details"]
@@ -181,9 +225,8 @@ with overview_tab:
         st.image(analysis.masks.spread_overlay_rgb, use_container_width=True)
 
     st.caption(
-        "Red marks detected dark pixels. Green grid cells pass the dark-cell "
-        "threshold; blue cells contain banana pixels but do not pass it. The "
-        "full segmented banana, including both tips, is analysed."
+        "Red marks cleaned dark pixels. Green grid cells pass the dark-cell "
+        "threshold; blue cells contain banana pixels but do not pass it."
     )
     st.caption(
         f"Shared banana-segmentation time: "
@@ -228,23 +271,22 @@ with rules_tab:
     st.write(f"**Surface grade:** {analysis.surface_grade}")
     st.write(f"**Reason:** {analysis.decision_reason}")
 
-    spread_columns = st.columns(3)
-    spread_columns[0].metric(
+    grid_columns = st.columns(3)
+    grid_columns[0].metric(
         "Active dark cells",
         analysis.masks.active_spread_cells,
     )
-    spread_columns[1].metric(
+    grid_columns[1].metric(
         "Valid banana cells",
         analysis.masks.valid_spread_cells,
     )
-    spread_columns[2].metric(
+    grid_columns[2].metric(
         "Spread",
         f"{analysis.dark_region_spread:.2f}%",
     )
 
     st.caption(
-        "Only two classification measurements are retained: total dark "
-        "percentage and dark-region spread. Largest-patch and concentration "
-        "features were removed because validation showed that they added "
-        "complexity without improving the selected rule set."
+        "The classifier uses seven measurements derived from the same cleaned "
+        "dark mask. No colour-space classifier or trained ripeness model is "
+        "used by this branch."
     )
