@@ -1,0 +1,236 @@
+{
+  "schema_version": 5,
+  "evaluation_mode": "quality",
+  "categories": [
+    "Class_A",
+    "Class_B",
+    "Defect"
+  ],
+  "status": "Quality evaluation completed for Morphology. HSV, K-means, GLCM Texture and Hybrid are not implemented for quality.",
+  "generated_at": "2026-08-21T20:51:48+08:00",
+  "dataset_split": "quality",
+  "dataset_directory": "dataset/Quality",
+  "image_count": 898,
+  "successful_images": 898,
+  "failed_images": 0,
+  "class_counts": {
+    "Class_A": 377,
+    "Class_B": 218,
+    "Defect": 303
+  },
+  "methods": {
+    "morphology": {
+      "method_key": "morphology",
+      "approach": "Morphology",
+      "implemented": true,
+      "status": "Completed",
+      "overall_accuracy": 0.7416481069042317,
+      "macro_f1": 0.7228197507532951,
+      "average_processing_time_ms": 46.59640311567115,
+      "successful_images": 898,
+      "failed_images": 0,
+      "per_class": {
+        "Class_A": {
+          "precision": 0.8005540166204986,
+          "recall": 0.76657824933687,
+          "f1": 0.7831978319783198,
+          "support": 377
+        },
+        "Class_B": {
+          "precision": 0.4820717131474104,
+          "recall": 0.555045871559633,
+          "f1": 0.5159914712153518,
+          "support": 218
+        },
+        "Defect": {
+          "precision": 0.8951048951048951,
+          "recall": 0.8448844884488449,
+          "f1": 0.8692699490662139,
+          "support": 303
+        }
+      },
+      "confusion_matrix": {
+        "actual_labels": [
+          "Class_A",
+          "Class_B",
+          "Defect"
+        ],
+        "predicted_labels": [
+          "Class_A",
+          "Class_B",
+          "Defect",
+          "Failed"
+        ],
+        "values": [
+          [
+            289,
+            83,
+            5,
+            0
+          ],
+          [
+            72,
+            121,
+            25,
+            0
+          ],
+          [
+            0,
+            47,
+            256,
+            0
+          ]
+        ]
+      }
+    },
+    "hsv": {
+      "method_key": "hsv",
+      "approach": "HSV",
+      "implemented": false,
+      "status": "Not implemented",
+      "overall_accuracy": null,
+      "macro_f1": null,
+      "average_processing_time_ms": null,
+      "successful_images": null,
+      "failed_images": null,
+      "per_class": {
+        "Class_A": {
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": null
+        },
+        "Class_B": {
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": null
+        },
+        "Defect": {
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": null
+        }
+      },
+      "confusion_matrix": null
+    },
+    "kmeans": {
+      "method_key": "kmeans",
+      "approach": "K-means",
+      "implemented": false,
+      "status": "Not implemented",
+      "overall_accuracy": null,
+      "macro_f1": null,
+      "average_processing_time_ms": null,
+      "successful_images": null,
+      "failed_images": null,
+      "per_class": {
+        "Class_A": {
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": null
+        },
+        "Class_B": {
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": null
+        },
+        "Defect": {
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": null
+        }
+      },
+      "confusion_matrix": null
+    },
+    "glcm": {
+      "method_key": "glcm",
+      "approach": "GLCM Texture",
+      "implemented": false,
+      "status": "Not implemented",
+      "overall_accuracy": null,
+      "macro_f1": null,
+      "average_processing_time_ms": null,
+      "successful_images": null,
+      "failed_images": null,
+      "per_class": {
+        "Class_A": {
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": null
+        },
+        "Class_B": {
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": null
+        },
+        "Defect": {
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": null
+        }
+      },
+      "confusion_matrix": null
+    },
+    "hybrid": {
+      "method_key": "hybrid",
+      "approach": "Hybrid",
+      "implemented": false,
+      "status": "Not implemented",
+      "overall_accuracy": null,
+      "macro_f1": null,
+      "average_processing_time_ms": null,
+      "successful_images": null,
+      "failed_images": null,
+      "per_class": {
+        "Class_A": {
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": null
+        },
+        "Class_B": {
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": null
+        },
+        "Defect": {
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": null
+        }
+      },
+      "confusion_matrix": null
+    }
+  },
+  "configuration": {
+    "known_ripeness": "Ripe",
+    "morphology_parameters": {
+      "gaussian_kernel_size": 5,
+      "blackhat_kernel_size": 21,
+      "blackhat_threshold": 15,
+      "absolute_dark_threshold": 75,
+      "local_dark_intensity_ceiling": 115,
+      "opening_kernel_size": 3,
+      "closing_kernel_size": 5,
+      "minimum_component_area_ratio": 0.0003,
+      "spread_grid_size": 5,
+      "spread_cell_dark_ratio": 0.05,
+      "minimum_grid_banana_ratio": 0.01
+    },
+    "morphology_quality_bands": {
+      "class_a_max_total_dark_percent": 23.5,
+      "defect_min_total_dark_percent": 37.25,
+      "extreme_dark_intensity_threshold": 50
+    }
+  }
+}

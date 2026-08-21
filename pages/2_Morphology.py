@@ -3,6 +3,7 @@ from time import perf_counter
 import streamlit as st
 
 from branches.morphology.morphology_analysis import (
+    QualityBands,
     RipenessBands,
     analyse_morphology,
 )
@@ -17,13 +18,13 @@ from ui.components import apply_app_styles, page_header
 from ui.result_display import render_result_summary
 
 
-MORPHOLOGY_RESULT_VERSION = 5
+MORPHOLOGY_RESULT_VERSION = 6
 
 
 apply_app_styles()
 page_header(
     "Morphological Dark-Region Analysis",
-    "Classify ripeness from the amount, connectivity and spread of dark peel regions.",
+    "Classify ripeness, then grade quality only when the result is Ripe.",
 )
 
 st.info(
@@ -36,9 +37,14 @@ st.warning(
     "clean green and clean yellow peel. Unripe versus Ripe remains the weakest "
     "part of this approach."
 )
+st.info(
+    "Quality labels follow the ripe-only quality dataset: Class_A, Class_B "
+    "and Defect. A non-Ripe prediction is not assigned a quality class."
+)
 
 parameters = MorphologyParameters()
 bands = RipenessBands()
+quality_bands = QualityBands()
 
 with st.expander("View frozen validation-derived rules"):
     st.markdown(
@@ -61,11 +67,22 @@ with st.expander("View frozen validation-derived rules"):
           used: **≤ {bands.very_small_patch_percent:.1f}%**, then
           **≤ {bands.small_patch_percent:.1f}%**, followed by a spread boundary
           of **{bands.localised_spread_percent:.1f}%**.
+
+        **Ripe-only quality decision**
+
+        - Quality grading runs only when ripeness is predicted as **Ripe**.
+        - Predict **Class_A** when total dark area is at or below
+          **{quality_bands.class_a_max_total_dark_percent:.2f}%**.
+        - Predict **Class_B** when total dark area is above the Class_A
+          boundary but at or below
+          **{quality_bands.defect_min_total_dark_percent:.2f}%**.
+        - Predict **Defect** when total dark area is above the Defect boundary.
         """
     )
     st.caption(
-        "These rules were selected from dataset/valid. Freeze them before the "
-        "final test evaluation; do not tune them using dataset/test."
+        "Ripeness rules were selected from dataset/Ripeness/valid. Quality "
+        "boundaries were selected from the ripe-only quality calibration "
+        "features. Freeze all boundaries before final evaluation."
     )
 
 
@@ -110,6 +127,7 @@ if st.button("Run morphology analysis", type="primary", use_container_width=True
                 banana_mask=segmentation.final_mask,
                 parameters=parameters,
                 bands=bands,
+                quality_bands=quality_bands,
             )
         except ValueError as error:
             error_message = str(error)
@@ -161,6 +179,29 @@ st.caption(
     "probability."
 )
 
+st.subheader("Conditional quality assessment")
+
+if analysis.quality_assessed:
+    st.success(
+        "The ripeness result is Ripe, so morphology quality grading was "
+        "performed using the same extracted dark-region measurements."
+    )
+    quality_columns = st.columns(2)
+    quality_columns[0].metric(
+        "Quality class",
+        analysis.predicted_quality,
+    )
+    quality_columns[1].metric(
+        "Quality confidence",
+        f"{analysis.quality_confidence_percent:.2f}%",
+    )
+    st.info(analysis.quality_reason)
+    st.caption(
+        "Quality confidence is deterministic rule support, not a probability."
+    )
+else:
+    st.info(analysis.quality_reason)
+
 first_metrics = st.columns(4)
 first_metrics[0].metric(
     "Total dark area",
@@ -202,8 +243,6 @@ second_metrics[3].metric(
     "Morphology time",
     f"{analysis.processing_time_ms:.2f} ms",
 )
-
-st.metric("Surface quality", analysis.surface_grade)
 
 overview_tab, masks_tab, rules_tab = st.tabs(
     ["Overview", "Morphology masks", "Decision details"]
@@ -268,8 +307,18 @@ with masks_tab:
 
 with rules_tab:
     st.write(f"**Prediction:** {analysis.predicted_category}")
-    st.write(f"**Surface grade:** {analysis.surface_grade}")
-    st.write(f"**Reason:** {analysis.decision_reason}")
+    st.write(f"**Ripeness reason:** {analysis.decision_reason}")
+
+    if analysis.quality_assessed:
+        st.write(f"**Quality class:** {analysis.predicted_quality}")
+        st.write(
+            f"**Quality confidence:** "
+            f"{analysis.quality_confidence_percent:.2f}%"
+        )
+        st.write(f"**Quality reason:** {analysis.quality_reason}")
+    else:
+        st.write("**Quality class:** Not assessed")
+        st.write(f"**Quality reason:** {analysis.quality_reason}")
 
     grid_columns = st.columns(3)
     grid_columns[0].metric(
@@ -286,7 +335,7 @@ with rules_tab:
     )
 
     st.caption(
-        "The classifier uses seven measurements derived from the same cleaned "
-        "dark mask. No colour-space classifier or trained ripeness model is "
-        "used by this branch."
+        "Ripeness and conditional quality grading reuse measurements from the "
+        "same cleaned dark mask. No colour-space classifier or trained model "
+        "is used by this branch."
     )

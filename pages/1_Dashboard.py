@@ -6,12 +6,14 @@ import plotly.express as px
 import streamlit as st
 
 from core.evaluation import (
-    CATEGORIES,
+    EVALUATION_MODE_QUALITY,
+    EVALUATION_MODE_RIPENESS,
     METHODS,
     EvaluationError,
     load_latest_evaluation,
     run_fixed_dataset_evaluation,
 )
+from core.result_schema import QUALITY_CATEGORIES, RIPENESS_CATEGORIES
 from ui.components import apply_app_styles, page_header
 
 
@@ -80,13 +82,14 @@ def _overall_dataframe(
 def _class_dataframe(
     report: dict,
     method_keys: list[str],
+    categories: tuple[str, ...],
 ) -> pd.DataFrame:
     rows = []
 
     for key in method_keys:
         per_class = report["methods"][key].get("per_class", {})
 
-        for category in CATEGORIES:
+        for category in categories:
             metrics = per_class.get(category, {})
             rows.append(
                 {
@@ -129,20 +132,52 @@ apply_app_styles()
 page_header(
     "Evaluation Dashboard",
     (
-        "Definitive fixed test-set results for the four individual "
-        "approaches and the integrated hybrid approach."
+        "Switch between the fixed ripeness test set and the ripe-only "
+        "quality dataset. Each mode keeps its own latest result."
     ),
 )
 
-st.warning(
-    "Final-test results are for reporting only. Do not modify thresholds or "
-    "hybrid weights after viewing them; calibration belongs to dataset/valid."
+mode_label = st.radio(
+    "Evaluation mode",
+    options=("Ripeness", "Quality"),
+    horizontal=True,
+    key="evaluation_mode_selector",
+)
+evaluation_mode = (
+    EVALUATION_MODE_QUALITY
+    if mode_label == "Quality"
+    else EVALUATION_MODE_RIPENESS
+)
+categories = (
+    QUALITY_CATEGORIES
+    if evaluation_mode == EVALUATION_MODE_QUALITY
+    else RIPENESS_CATEGORIES
+)
+class_axis_title = (
+    "Quality class"
+    if evaluation_mode == EVALUATION_MODE_QUALITY
+    else "Ripeness category"
 )
 
-if "evaluation_report" not in st.session_state:
-    st.session_state["evaluation_report"] = load_latest_evaluation()
+if evaluation_mode == EVALUATION_MODE_RIPENESS:
+    st.warning(
+        "Final ripeness-test results are for reporting only. Threshold and "
+        "hybrid calibration belongs to the validation data."
+    )
+else:
+    st.info(
+        "Quality mode treats every image as already Ripe and predicts only "
+        "Class_A, Class_B, or Defect. Only Morphology is implemented; HSV, "
+        "K-means, GLCM Texture, and Hybrid remain Not implemented."
+    )
 
-report = st.session_state["evaluation_report"]
+report_state_key = f"evaluation_report_{evaluation_mode}"
+if report_state_key not in st.session_state:
+    st.session_state[report_state_key] = load_latest_evaluation(
+        mode=evaluation_mode
+    )
+
+report = st.session_state[report_state_key]
 evaluated_keys = _evaluated_method_keys(report)
 
 best_key = None
@@ -154,11 +189,11 @@ if evaluated_keys:
 
 summary_columns = st.columns(4)
 summary_columns[0].metric(
-    "Dataset split",
-    str(report.get("dataset_split", "test")).title(),
+    "Evaluation mode",
+    mode_label,
 )
 summary_columns[1].metric(
-    "Test images",
+    "Images",
     int(report.get("image_count", 0)),
 )
 summary_columns[2].metric(
@@ -180,8 +215,19 @@ st.caption(
     f"{report.get('status', 'No evaluation status available.')}"
 )
 
+button_label = (
+    "Run ripe-banana quality evaluation"
+    if evaluation_mode == EVALUATION_MODE_QUALITY
+    else "Re-run fixed ripeness test-set evaluation"
+)
+spinner_label = (
+    "Evaluating the quality dataset..."
+    if evaluation_mode == EVALUATION_MODE_QUALITY
+    else "Evaluating the fixed ripeness test set..."
+)
+
 if st.button(
-    "Re-run fixed test-set evaluation",
+    button_label,
     type="primary",
     use_container_width=True,
 ):
@@ -193,12 +239,13 @@ if st.button(
         progress_text.caption(message)
 
     try:
-        with st.spinner("Evaluating the fixed test set..."):
+        with st.spinner(spinner_label):
             report = run_fixed_dataset_evaluation(
-                progress_callback=update_progress
+                progress_callback=update_progress,
+                mode=evaluation_mode,
             )
 
-        st.session_state["evaluation_report"] = report
+        st.session_state[report_state_key] = report
         progress_bar.progress(100)
         progress_text.success("Evaluation completed and saved.")
         evaluated_keys = _evaluated_method_keys(report)
@@ -212,23 +259,35 @@ if st.button(
         st.error(f"Evaluation stopped unexpectedly: {error}")
         st.exception(error)
 
-report = st.session_state["evaluation_report"]
+report = st.session_state[report_state_key]
 evaluated_keys = _evaluated_method_keys(report)
+
+if evaluation_mode == EVALUATION_MODE_QUALITY:
+    quality_status = _overall_dataframe(report, list(METHODS))[
+        ["Approach", "Status"]
+    ]
+    st.markdown("#### Quality-mode implementation status")
+    st.dataframe(
+        quality_status,
+        hide_index=True,
+        use_container_width=True,
+    )
 
 if not evaluated_keys:
     st.info(
-        "No completed evaluation is available. Run the fixed test-set "
-        "evaluation to generate the result visualisations."
+        f"No completed {mode_label.lower()} evaluation is available. "
+        "Run the evaluation to generate the result visualisations."
     )
     st.stop()
 
-overall = _overall_dataframe(report, evaluated_keys)
-per_class = _class_dataframe(report, evaluated_keys)
+overall = _overall_dataframe(report, list(METHODS))
+evaluated_overall = _overall_dataframe(report, evaluated_keys)
+per_class = _class_dataframe(report, evaluated_keys, categories)
 
 st.divider()
 st.subheader("Overall performance")
 
-performance_long = overall.melt(
+performance_long = evaluated_overall.melt(
     id_vars="Approach",
     value_vars=["Overall accuracy", "Macro F1"],
     var_name="Metric",
@@ -267,8 +326,9 @@ st.plotly_chart(
 )
 
 st.caption(
-    "Overall accuracy measures the proportion of correctly classified test "
-    "images. Macro F1 gives equal importance to all four ripeness classes."
+    "Overall accuracy measures the proportion of correctly classified "
+    f"images. Macro F1 gives equal importance to all {len(categories)} "
+    f"{class_axis_title.lower()} values."
 )
 
 st.subheader("Per-class F1 comparison")
@@ -276,7 +336,7 @@ st.subheader("Per-class F1 comparison")
 method_order = [METHODS[key] for key in evaluated_keys]
 f1_matrix = (
     per_class.pivot(index="Approach", columns="Category", values="F1")
-    .reindex(index=method_order, columns=list(CATEGORIES))
+    .reindex(index=method_order, columns=list(categories))
 )
 
 f1_figure = px.imshow(
@@ -287,7 +347,7 @@ f1_figure = px.imshow(
     aspect="auto",
     color_continuous_scale="YlGn",
     labels={
-        "x": "Ripeness category",
+        "x": class_axis_title,
         "y": "Approach",
         "color": "F1",
     },
@@ -338,7 +398,7 @@ detail_figure = px.bar(
     barmode="group",
     color_discrete_map=METRIC_COLOURS,
     category_orders={
-        "Category": list(CATEGORIES),
+        "Category": list(categories),
         "Metric": ["Precision", "Recall", "F1"],
     },
 )
@@ -394,8 +454,8 @@ else:
         aspect="auto",
         color_continuous_scale="Blues",
         labels={
-            "x": "Predicted category",
-            "y": "Actual category",
+            "x": f"Predicted {class_axis_title.lower()}",
+            "y": f"Actual {class_axis_title.lower()}",
             "color": "Images",
         },
     )
@@ -410,7 +470,8 @@ else:
 
     st.caption(
         "Diagonal cells are correct predictions. Off-diagonal cells show "
-        "which ripeness categories were confused with one another."
+        f"which {class_axis_title.lower()} values were confused with one "
+        "another."
     )
 
 st.subheader("Average processing time")
@@ -444,9 +505,9 @@ st.plotly_chart(
 
 support_text = " · ".join(
     f"{category}: {report.get('class_counts', {}).get(category, 0)}"
-    for category in CATEGORIES
+    for category in categories
 )
-st.caption(f"Fixed test-set composition — {support_text}")
+st.caption(f"Evaluated dataset composition — {support_text}")
 
 with st.expander("View exact evaluation tables"):
     st.markdown("#### Overall metrics")

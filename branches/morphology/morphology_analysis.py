@@ -10,10 +10,14 @@ from branches.morphology.morphology_segmentation import (
     MorphologyParameters,
     detect_blemishes,
 )
-from core.result_schema import MethodResult
+from core.result_schema import (
+    MethodResult,
+    QUALITY_CATEGORIES,
+    RIPENESS_CATEGORIES,
+)
 
 
-CATEGORIES = ("Unripe", "Ripe", "Overripe", "Rotten")
+CATEGORIES = RIPENESS_CATEGORIES
 
 
 @dataclass(frozen=True)
@@ -52,6 +56,15 @@ class RipenessBands:
         return self.high_total_dark_percent
 
 
+@dataclass(frozen=True)
+class QualityBands:
+    """Quality rules selected from the ripe-only quality validation data."""
+
+    class_a_max_total_dark_percent: float = 23.50
+    defect_min_total_dark_percent: float = 37.25
+    extreme_dark_intensity_threshold: int = 50
+
+
 @dataclass
 class MorphologyAnalysisResult:
     method_result: MethodResult
@@ -73,9 +86,30 @@ class MorphologyAnalysisResult:
     extreme_dark_percentage: float
     largest_patch_mean_intensity: float | None
 
+    # Quality is deliberately conditional on a Ripe ripeness prediction.
+    quality_assessed: bool
+    predicted_quality: str | None
+    quality_confidence_percent: float | None
+    quality_reason: str
+
     @property
     def concentration_ratio_percentage(self) -> float:
         return self.concentration_ratio
+
+
+@dataclass
+class MorphologyQualityResult:
+    """Quality-only output for a dataset containing known-ripe bananas."""
+
+    method_result: MethodResult
+    masks: MorphologyMaskResult
+    predicted_quality: str
+    confidence_percent: float
+    blemish_percentage: float
+    processing_time_ms: float
+    total_dark_percentage: float
+    quality_reason: str
+    features: dict[str, Any]
 
 
 def _validate_bands(bands: RipenessBands) -> None:
@@ -110,6 +144,28 @@ def _validate_bands(bands: RipenessBands) -> None:
     if not 0 <= bands.overripe_max_patch_mean_intensity <= 255:
         raise ValueError(
             "overripe_max_patch_mean_intensity must be between 0 and 255."
+        )
+    if not 0 <= bands.extreme_dark_intensity_threshold <= 255:
+        raise ValueError(
+            "extreme_dark_intensity_threshold must be between 0 and 255."
+        )
+
+
+def _validate_quality_bands(bands: QualityBands) -> None:
+    if not 0.0 <= bands.class_a_max_total_dark_percent <= 100.0:
+        raise ValueError(
+            "class_a_max_total_dark_percent must be between 0 and 100."
+        )
+    if not 0.0 <= bands.defect_min_total_dark_percent <= 100.0:
+        raise ValueError(
+            "defect_min_total_dark_percent must be between 0 and 100."
+        )
+    if (
+        bands.class_a_max_total_dark_percent
+        >= bands.defect_min_total_dark_percent
+    ):
+        raise ValueError(
+            "The Class_A boundary must be below the Defect boundary."
         )
     if not 0 <= bands.extreme_dark_intensity_threshold <= 255:
         raise ValueError(
@@ -341,14 +397,72 @@ def _rule_confidence(
     return 50.0 + 40.0 * support
 
 
-def _surface_grade(total_dark: float) -> str:
-    if total_dark <= 5.0:
-        return "Grade A - Very low visible dark area"
-    if total_dark <= 15.0:
-        return "Grade B - Low visible dark area"
-    if total_dark <= 30.0:
-        return "Grade C - High visible dark area"
-    return "Reject - Severe visible dark area"
+def _classify_quality(
+    values: dict[str, float | int | None],
+    bands: QualityBands,
+) -> tuple[str, str, str]:
+    """Classify a Ripe banana into the three quality-dataset labels."""
+
+    total_dark = float(values["total_dark_percentage"])
+    if total_dark > bands.defect_min_total_dark_percent:
+        return (
+            "Defect",
+            "quality_high_total_dark",
+            f"Total dark area is {total_dark:.2f}%, above the validated "
+            f"Defect boundary of {bands.defect_min_total_dark_percent:.2f}%.",
+        )
+
+    if total_dark <= bands.class_a_max_total_dark_percent:
+        return (
+            "Class_A",
+            "quality_low_total_dark",
+            f"Total dark area is {total_dark:.2f}%, at or below the "
+            f"validated Class_A boundary of "
+            f"{bands.class_a_max_total_dark_percent:.2f}%.",
+        )
+
+    return (
+        "Class_B",
+        "quality_moderate_total_dark",
+        f"Total dark area ({total_dark:.2f}%) lies between the validated "
+        "Class_A and Defect boundaries.",
+    )
+
+
+def _quality_rule_confidence(
+    quality: str,
+    values: dict[str, float | int | None],
+    bands: QualityBands,
+) -> float:
+    """Return conservative support for the selected quality rule."""
+
+    total_dark = float(values["total_dark_percentage"])
+    if quality == "Defect":
+        support = _clip01(
+            (total_dark - bands.defect_min_total_dark_percent)
+            / max(100.0 - bands.defect_min_total_dark_percent, 1.0)
+        )
+    elif quality == "Class_A":
+        support = _clip01(
+            (bands.class_a_max_total_dark_percent - total_dark)
+            / max(bands.class_a_max_total_dark_percent, 1.0)
+        )
+    else:
+        midpoint = (
+            bands.class_a_max_total_dark_percent
+            + bands.defect_min_total_dark_percent
+        ) / 2.0
+        half_width = max(
+            (bands.defect_min_total_dark_percent
+             - bands.class_a_max_total_dark_percent)
+            / 2.0,
+            1.0,
+        )
+        support = 1.0 - _clip01(
+            abs(total_dark - midpoint) / half_width
+        )
+
+    return 50.0 + 40.0 * support
 
 
 def analyse_morphology(
@@ -356,13 +470,16 @@ def analyse_morphology(
     banana_mask: np.ndarray,
     parameters: MorphologyParameters | None = None,
     bands: RipenessBands | None = None,
+    quality_bands: QualityBands | None = None,
 ) -> MorphologyAnalysisResult:
-    """Classify ripeness using validation-calibrated morphology rules."""
+    """Classify ripeness and conditionally grade a Ripe banana's quality."""
 
     start_time = perf_counter()
     parameters = parameters or MorphologyParameters()
     bands = bands or RipenessBands()
+    quality_bands = quality_bands or QualityBands()
     _validate_bands(bands)
+    _validate_quality_bands(quality_bands)
 
     masks = detect_blemishes(
         rgb_image=rgb_image,
@@ -377,7 +494,30 @@ def analyse_morphology(
     )
     category, rule_key, reason = _classify(values, bands)
     confidence = _rule_confidence(category, rule_key, values, bands)
-    surface_grade = _surface_grade(float(values["total_dark_percentage"]))
+
+    quality_assessed = category == "Ripe"
+    predicted_quality = None
+    quality_confidence = None
+    quality_rule_key = "quality_not_assessed"
+
+    if quality_assessed:
+        predicted_quality, quality_rule_key, quality_reason = _classify_quality(
+            values,
+            quality_bands,
+        )
+        quality_confidence = _quality_rule_confidence(
+            predicted_quality,
+            values,
+            quality_bands,
+        )
+        surface_grade = predicted_quality
+    else:
+        quality_reason = (
+            f"Quality assessment was skipped because the predicted ripeness "
+            f"category is {category}. Only Ripe bananas are quality graded."
+        )
+        surface_grade = "Not assessed"
+
     processing_time_ms = (perf_counter() - start_time) * 1000.0
 
     patch_mean = values["largest_patch_mean_intensity"]
@@ -401,6 +541,16 @@ def analyse_morphology(
         "Largest-patch mean intensity": (
             None if patch_mean is None else round(float(patch_mean), 4)
         ),
+        "Quality assessed": quality_assessed,
+        "Quality class": predicted_quality or "Not assessed",
+        "Quality confidence (%)": (
+            None
+            if quality_confidence is None
+            else round(float(quality_confidence), 4)
+        ),
+        "Quality decision rule": quality_rule_key,
+        "Quality decision reason": quality_reason,
+        # Retained so older consumers that read this feature do not break.
         "Surface grade": surface_grade,
         "Decision rule": rule_key,
         "Decision reason": reason,
@@ -422,6 +572,8 @@ def analyse_morphology(
             "Decision thresholds were selected using the validation split and must now be frozen.",
             "Confidence is deterministic rule support, not a learned probability.",
             "Morphology remains weakest for visually clean Unripe versus Ripe bananas.",
+            "Quality is assessed only after the ripeness result is Ripe.",
+            "The quality stage reuses the existing morphology measurements; it does not process the image twice.",
         ],
         is_placeholder=False,
     )
@@ -447,4 +599,106 @@ def analyse_morphology(
         largest_patch_mean_intensity=(
             None if patch_mean is None else float(patch_mean)
         ),
+        quality_assessed=quality_assessed,
+        predicted_quality=predicted_quality,
+        quality_confidence_percent=quality_confidence,
+        quality_reason=quality_reason,
+    )
+
+
+def analyse_morphology_quality(
+    rgb_image: np.ndarray,
+    banana_mask: np.ndarray,
+    parameters: MorphologyParameters | None = None,
+    quality_bands: QualityBands | None = None,
+) -> MorphologyQualityResult:
+    """
+    Grade a banana whose ripeness is already known to be Ripe.
+
+    This path intentionally skips the four-class ripeness classifier. It is
+    used by the quality-dataset evaluation, where every source image is a
+    ripe banana and the only target is Class_A, Class_B, or Defect.
+    """
+
+    start_time = perf_counter()
+    parameters = parameters or MorphologyParameters()
+    quality_bands = quality_bands or QualityBands()
+    _validate_quality_bands(quality_bands)
+
+    masks = detect_blemishes(
+        rgb_image=rgb_image,
+        banana_mask=banana_mask,
+        parameters=parameters,
+    )
+    values = _extract_region_features(
+        masks=masks,
+        banana_mask=banana_mask,
+        extreme_dark_threshold=(
+            quality_bands.extreme_dark_intensity_threshold
+        ),
+    )
+    quality, rule_key, reason = _classify_quality(values, quality_bands)
+    confidence = _quality_rule_confidence(quality, values, quality_bands)
+    processing_time_ms = (perf_counter() - start_time) * 1000.0
+
+    patch_mean = values["largest_patch_mean_intensity"]
+    features = {
+        "Known ripeness": "Ripe",
+        "Total dark percentage (%)": round(
+            float(values["total_dark_percentage"]), 4
+        ),
+        "Largest dark patch (%)": round(
+            float(values["largest_dark_patch_percentage"]), 4
+        ),
+        "Concentration ratio (%)": round(
+            float(values["concentration_ratio"]), 4
+        ),
+        "Dark-region spread (%)": round(
+            float(values["dark_region_spread"]), 4
+        ),
+        "Dark component count": int(values["dark_component_count"]),
+        "Extreme-dark percentage (%)": round(
+            float(values["extreme_dark_percentage"]), 4
+        ),
+        "Largest-patch mean intensity": (
+            None if patch_mean is None else round(float(patch_mean), 4)
+        ),
+        "Quality class": quality,
+        "Quality decision rule": rule_key,
+        "Quality decision reason": reason,
+    }
+
+    class_scores = {name: 0.0 for name in QUALITY_CATEGORIES}
+    class_scores[quality] = confidence / 100.0
+
+    method_result = MethodResult(
+        method_key="morphology",
+        method_name="Morphology - Ripe Banana Quality Analysis",
+        predicted_category=quality,
+        confidence_percent=round(confidence, 2),
+        processing_time_ms=round(processing_time_ms, 2),
+        class_scores=class_scores,
+        features=features,
+        notes=[
+            "The input is treated as Ripe because the quality dataset "
+            "contains only ripe bananas.",
+            "No ripeness category is predicted in this analysis path.",
+            "Quality is determined from morphologically cleaned dark-area "
+            "measurements.",
+            "Confidence is deterministic rule support, not a learned "
+            "probability.",
+        ],
+        is_placeholder=False,
+    )
+
+    return MorphologyQualityResult(
+        method_result=method_result,
+        masks=masks,
+        predicted_quality=quality,
+        confidence_percent=confidence,
+        blemish_percentage=float(values["total_dark_percentage"]),
+        processing_time_ms=processing_time_ms,
+        total_dark_percentage=float(values["total_dark_percentage"]),
+        quality_reason=reason,
+        features=features,
     )
