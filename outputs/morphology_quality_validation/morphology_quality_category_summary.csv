@@ -1,0 +1,4 @@
+actual_quality,total_images,completed_images,failed_images,correct_predictions,recall_percent
+Class_A,353,353,0,3,0.8499
+Class_B,203,203,0,13,6.4039
+Defect,282,282,0,282,100.0000

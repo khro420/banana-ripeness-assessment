@@ -2,7 +2,11 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
-CATEGORIES = ("Unripe", "Ripe", "Overripe", "Rotten")
+RIPENESS_CATEGORIES = ("Unripe", "Ripe", "Overripe", "Rotten")
+QUALITY_CATEGORIES = ("Class_A", "Class_B", "Defect")
+
+# Backward-compatible name used by the existing approach modules.
+CATEGORIES = RIPENESS_CATEGORIES
 
 METHOD_NAMES = {
     "morphology": "Morphology",
@@ -66,8 +70,23 @@ def placeholder_method_result(method_key: str) -> MethodResult:
     )
 
 
-def empty_evaluation_snapshot() -> EvaluationSnapshot:
+def empty_evaluation_snapshot(
+    evaluation_mode: str = "ripeness",
+) -> EvaluationSnapshot:
     """Create the initial dashboard structure without fabricated results."""
+
+    if evaluation_mode == "ripeness":
+        categories = RIPENESS_CATEGORIES
+        dataset_name = "Banana ripeness classification dataset"
+        dataset_split = "Fixed test set"
+    elif evaluation_mode == "quality":
+        categories = QUALITY_CATEGORIES
+        dataset_name = "Ripe banana quality dataset"
+        dataset_split = "Quality dataset"
+    else:
+        raise ValueError(
+            "evaluation_mode must be either 'ripeness' or 'quality'."
+        )
 
     overall_rows = [
         {
@@ -89,18 +108,18 @@ def empty_evaluation_snapshot() -> EvaluationSnapshot:
             "Support": None,
         }
         for approach in METHOD_NAMES.values()
-        for category in CATEGORIES
+        for category in categories
     ]
 
     confusion_matrices = {
-        approach: [[0 for _ in CATEGORIES] for _ in CATEGORIES]
+        approach: [[0 for _ in categories] for _ in categories]
         for approach in METHOD_NAMES.values()
     }
 
     return EvaluationSnapshot(
         generated_at=None,
-        dataset_name="Banana ripeness classification dataset",
-        dataset_split="Fixed test set",
+        dataset_name=dataset_name,
+        dataset_split=dataset_split,
         image_count=0,
         failed_count=0,
         status_message="No real evaluation has been performed.",
