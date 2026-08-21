@@ -44,11 +44,6 @@ pages = [
         title="Hybrid",
         icon=":material/hub:",
     ),
-    st.Page(
-    ROOT / "pages" / "7_Segmentation_Test.py",
-    title="Segmentation Test",
-    icon=":material/filter_center_focus:",
-),
 ]
 
 with st.sidebar:
