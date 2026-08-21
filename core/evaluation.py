@@ -20,7 +20,12 @@ from branches.glcm.glcm_analysis import (
     GLCMRipenessBands,
     analyse_glcm,
 )
-from branches.hsv.hsv_analysis import HSVRipenessBands, analyse_hsv
+from branches.hsv.hsv_analysis import (
+    HSVQualityBands,
+    HSVRipenessBands,
+    analyse_hsv,
+    analyse_hsv_quality,
+)
 from branches.hsv.hsv_segmentation import HSVParameters
 from branches.kmeans.kmeans_analysis import (
     KMeansRipenessBands,
@@ -53,8 +58,8 @@ EVALUATION_MODE_LABELS = {
 }
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-RIPENESS_TEST_DIRECTORY = PROJECT_ROOT / "dataset" / "Ripeness" / "test"
-QUALITY_DIRECTORY = PROJECT_ROOT / "dataset" / "Quality" / "test"
+RIPENESS_TEST_DIRECTORY = PROJECT_ROOT / "dataset" / "ripeness" / "test"
+QUALITY_DIRECTORY = PROJECT_ROOT / "dataset" / "quality" / "test"
 RESULT_DIRECTORY = PROJECT_ROOT / "outputs" / "evaluation_results"
 
 LATEST_RESULT_FILES = {
@@ -74,9 +79,9 @@ RIPENESS_FOLDER_TO_CATEGORY = {
     "rotten": "Rotten",
 }
 QUALITY_FOLDER_TO_CATEGORY = {
-    "Class_A": "Class_A",
-    "Class_B": "Class_B",
-    "Defect": "Defect",
+    "class_a": "Class_A",
+    "class_b": "Class_B",
+    "defect": "Defect",
 }
 
 METHODS = dict(METHOD_NAMES)
@@ -103,7 +108,7 @@ def _categories_for_mode(mode: str) -> tuple[str, ...]:
 
 def _implemented_methods(mode: str) -> set[str]:
     if mode == EVALUATION_MODE_QUALITY:
-        return {"morphology"}
+        return {"morphology", "hsv"}
     return set(METHODS)
 
 
@@ -114,13 +119,13 @@ def _dataset_definition(
         return (
             QUALITY_DIRECTORY,
             QUALITY_FOLDER_TO_CATEGORY,
-            "dataset/Quality",
-            "quality",
+            "dataset/quality/test",
+            "test",
         )
     return (
         RIPENESS_TEST_DIRECTORY,
         RIPENESS_FOLDER_TO_CATEGORY,
-        "dataset/Ripeness/test",
+        "dataset/ripeness/test",
         "test",
     )
 
@@ -164,7 +169,7 @@ def create_empty_evaluation(
     _, _, dataset_directory, dataset_split = _dataset_definition(mode)
 
     return {
-        "schema_version": 5,
+        "schema_version": 6,
         "evaluation_mode": mode,
         "categories": list(categories),
         "status": "No evaluation has been run.",
@@ -194,7 +199,7 @@ def _normalise_loaded_report(
     categories = _categories_for_mode(mode)
     implemented = _implemented_methods(mode)
 
-    report.setdefault("schema_version", 5)
+    report.setdefault("schema_version", 6)
     report.setdefault("evaluation_mode", mode)
     report.setdefault("categories", list(categories))
     report.setdefault("methods", {})
@@ -208,6 +213,18 @@ def _normalise_loaded_report(
                 implemented=key in implemented,
             ),
         )
+
+        method = report["methods"][key]
+        has_result = isinstance(method.get("overall_accuracy"), (int, float))
+
+        if not has_result:
+            if key in implemented:
+                method["implemented"] = True
+                if method.get("status") == "Not implemented":
+                    method["status"] = "Not evaluated"
+            else:
+                method["implemented"] = False
+                method["status"] = "Not implemented"
 
     return report
 
@@ -530,36 +547,55 @@ def _evaluate_quality_image(
     image_path: Path,
     actual_quality: str,
     morphology_parameters: MorphologyParameters,
-    quality_bands: QualityBands,
+    morphology_quality_bands: QualityBands,
+    hsv_parameters: HSVParameters,
+    hsv_quality_bands: HSVQualityBands,
 ) -> dict[str, Any]:
+    """Evaluate implemented surface-quality methods on one known-ripe image."""
+
     implemented = _implemented_methods(EVALUATION_MODE_QUALITY)
     record = _new_record(image_path, actual_quality, implemented)
     shared = _prepare_and_segment(record, image_path, implemented)
+
     if shared is None:
         return record
 
     prepared, segmentation, shared_time_ms = shared
-    branch_start = perf_counter()
-    try:
-        analysis = analyse_morphology_quality(
+
+    jobs = {
+        "morphology": lambda: analyse_morphology_quality(
             rgb_image=prepared.working_rgb,
             banana_mask=segmentation.final_mask,
             parameters=morphology_parameters,
-            quality_bands=quality_bands,
-        )
-        _store_result(
-            record,
-            "morphology",
-            analysis,
-            actual_quality,
-            shared_time_ms,
-        )
-    except Exception as error:
-        failed_branch_ms = (perf_counter() - branch_start) * 1000.0
-        record["morphology_error"] = str(error)
-        record["morphology_total_processing_time_ms"] = (
-            shared_time_ms + failed_branch_ms
-        )
+            quality_bands=morphology_quality_bands,
+        ),
+        "hsv": lambda: analyse_hsv_quality(
+            rgb_image=prepared.working_rgb,
+            banana_mask=segmentation.final_mask,
+            parameters=hsv_parameters,
+            quality_bands=hsv_quality_bands,
+        ),
+    }
+
+    for key, job in jobs.items():
+        branch_start = perf_counter()
+
+        try:
+            analysis = job()
+            _store_result(
+                record,
+                key,
+                analysis,
+                actual_quality,
+                shared_time_ms,
+            )
+
+        except Exception as error:
+            failed_branch_ms = (perf_counter() - branch_start) * 1000.0
+            record[f"{key}_error"] = str(error)
+            record[f"{key}_total_processing_time_ms"] = (
+                shared_time_ms + failed_branch_ms
+            )
 
     return record
 
@@ -713,16 +749,22 @@ def run_fixed_dataset_evaluation(
         )
 
     else:
-        quality_bands = QualityBands()
+        morphology_quality_bands = QualityBands()
+        hsv_parameters = HSVParameters()
+        hsv_quality_bands = HSVQualityBands()
+
         for index, item in enumerate(images, start=1):
             records.append(
                 _evaluate_quality_image(
                     image_path=item["path"],
                     actual_quality=item["actual_category"],
                     morphology_parameters=morphology_parameters,
-                    quality_bands=quality_bands,
+                    morphology_quality_bands=morphology_quality_bands,
+                    hsv_parameters=hsv_parameters,
+                    hsv_quality_bands=hsv_quality_bands,
                 )
             )
+
             if progress_callback is not None:
                 progress_callback(
                     index,
@@ -734,11 +776,14 @@ def run_fixed_dataset_evaluation(
         configuration = {
             "known_ripeness": "Ripe",
             "morphology_parameters": asdict(morphology_parameters),
-            "morphology_quality_bands": asdict(quality_bands),
+            "morphology_quality_bands": asdict(morphology_quality_bands),
+            "hsv_parameters": asdict(hsv_parameters),
+            "hsv_quality_bands": asdict(hsv_quality_bands),
         }
+
         status = (
-            "Quality evaluation completed for Morphology. HSV, K-means, "
-            "GLCM Texture and Hybrid are not implemented for quality."
+            "Quality evaluation completed for Morphology and HSV. "
+            "K-means, GLCM Texture and Hybrid are not implemented for quality."
         )
 
     method_metrics = {
@@ -759,7 +804,7 @@ def run_fixed_dataset_evaluation(
     _, _, dataset_directory, dataset_split = _dataset_definition(mode)
 
     report = {
-        "schema_version": 5,
+        "schema_version": 6,
         "evaluation_mode": mode,
         "categories": list(categories),
         "status": status,

@@ -2,7 +2,11 @@ from time import perf_counter
 
 import streamlit as st
 
-from branches.hsv.hsv_analysis import HSVRipenessBands, analyse_hsv
+from branches.hsv.hsv_analysis import (
+    HSVQualityBands,
+    HSVRipenessBands,
+    analyse_hsv,
+)
 from branches.hsv.hsv_segmentation import HSVParameters
 from core.banana_segmentation import segment_banana
 from core.image_handling import (
@@ -14,35 +18,37 @@ from ui.components import apply_app_styles, page_header
 from ui.result_display import render_result_summary
 
 
-HSV_RESULT_VERSION = 4
+HSV_RESULT_VERSION = 5
 
 
 apply_app_styles()
 
 page_header(
     "HSV Colour Analysis",
-    "Classify banana ripeness from green, yellow, brown and dark peel regions.",
+    (
+        "Classify banana ripeness and assess Ripe banana "
+        "surface quality using HSV colour measurements."
+    ),
 )
 
 st.info(
-    "HSV analysis converts the segmented banana from RGB to HSV colour space. "
-    "Green, yellow, brown and very dark peel regions are measured as a "
-    "percentage of the visible banana surface."
+    "HSV analysis converts the segmented banana from RGB to HSV colour "
+    "space. Green, yellow, brown and dark peel regions are measured as "
+    "percentages of the visible banana surface."
 )
 
 st.warning(
-    "Limitation: HSV colour measurements can be affected by illumination, "
-    "shadows and camera colour differences. The classification thresholds "
-    "below were calibrated on the validation split and should remain frozen "
-    "during final test evaluation."
+    "Ripeness and quality thresholds must be calibrated using their "
+    "respective validation splits. The test splits must not be used for "
+    "threshold tuning."
 )
-
 
 parameters = HSVParameters()
 bands = HSVRipenessBands()
+quality_bands = HSVQualityBands()
 
 
-with st.expander("View frozen HSV decision rules"):
+with st.expander("View HSV ripeness decision rules"):
     st.markdown(
         f"""
         Rules are checked in this order:
@@ -67,22 +73,44 @@ with st.expander("View frozen HSV decision rules"):
         """
     )
 
-    st.caption(
-        "These thresholds were selected using the validation split. Do not "
-        "change them after viewing final test results."
+
+with st.expander("View HSV surface-quality decision rules"):
+    st.markdown(
+        f"""
+        Surface quality is assessed **only when the HSV ripeness result is Ripe**.
+
+        1. **Defect:** brown + dark area >
+           {quality_bands.defect_min_deteriorated_percent:.2f}%.
+
+        2. **Class B:** otherwise, brown area ≤
+           {quality_bands.class_b_max_brown_percent:.2f}% and
+           yellow / (brown + dark) ≤
+           {quality_bands.class_b_max_yellow_deterioration_ratio:.2f}.
+
+        3. **Class A:** all remaining non-defect Ripe cases.
+
+        The surface-quality branch uses only HSV-derived measurements.
+        It does not use morphology measurements.
+        """
     )
 
 
 uploaded_file = st.file_uploader(
     "Upload one banana image",
-    type=["jpg", "jpeg", "png"],
+    type=[
+        "jpg",
+        "jpeg",
+        "png",
+    ],
     accept_multiple_files=False,
     key="hsv_upload",
 )
 
 
 if uploaded_file is None:
-    st.info("Upload an image to begin.")
+    st.info(
+        "Upload an image to begin."
+    )
     st.stop()
 
 
@@ -93,7 +121,9 @@ try:
     )
 
 except ImageValidationError as error:
-    st.error(str(error))
+    st.error(
+        str(error)
+    )
     st.stop()
 
 
@@ -103,8 +133,9 @@ st.image(
     width=420,
 )
 
-
-fingerprint = image_fingerprint(uploaded_file)
+fingerprint = image_fingerprint(
+    uploaded_file
+)
 
 
 if st.button(
@@ -112,9 +143,6 @@ if st.button(
     type="primary",
     use_container_width=True,
 ):
-    # ---------------------------------------------------------
-    # Shared banana segmentation
-    # ---------------------------------------------------------
     segmentation_start = perf_counter()
 
     segmentation = segment_banana(
@@ -123,15 +151,13 @@ if st.button(
     )
 
     segmentation_time_ms = (
-        perf_counter() - segmentation_start
+        perf_counter()
+        - segmentation_start
     ) * 1000.0
 
     analysis = None
     error_message = None
 
-    # ---------------------------------------------------------
-    # HSV analysis
-    # ---------------------------------------------------------
     if segmentation.success:
         try:
             analysis = analyse_hsv(
@@ -139,20 +165,23 @@ if st.button(
                 banana_mask=segmentation.final_mask,
                 parameters=parameters,
                 bands=bands,
+                quality_bands=quality_bands,
             )
 
         except ValueError as error:
-            error_message = str(error)
+            error_message = str(
+                error
+            )
 
     else:
         error_message = (
-            "HSV analysis stopped because segmentation failed."
+            "HSV analysis stopped because "
+            "banana segmentation failed."
         )
 
-    # ---------------------------------------------------------
-    # Save current result in Streamlit session state
-    # ---------------------------------------------------------
-    st.session_state["hsv_result"] = {
+    st.session_state[
+        "hsv_result"
+    ] = {
         "result_version": HSV_RESULT_VERSION,
         "fingerprint": fingerprint,
         "segmentation": segmentation,
@@ -162,16 +191,19 @@ if st.button(
     }
 
 
-# -------------------------------------------------------------
-# Retrieve saved result
-# -------------------------------------------------------------
-saved = st.session_state.get("hsv_result")
+saved = st.session_state.get(
+    "hsv_result"
+)
 
 
 if (
     saved is None
-    or saved.get("result_version") != HSV_RESULT_VERSION
-    or saved.get("fingerprint") != fingerprint
+    or saved.get(
+        "result_version"
+    ) != HSV_RESULT_VERSION
+    or saved.get(
+        "fingerprint"
+    ) != fingerprint
 ):
     st.caption(
         "Press **Run HSV analysis** to continue."
@@ -179,15 +211,18 @@ if (
     st.stop()
 
 
-segmentation = saved["segmentation"]
-analysis = saved["analysis"]
+segmentation = saved[
+    "segmentation"
+]
+analysis = saved[
+    "analysis"
+]
 
 
-# -------------------------------------------------------------
-# Shared segmentation failure
-# -------------------------------------------------------------
 if not segmentation.success:
-    st.error(saved["error"])
+    st.error(
+        saved["error"]
+    )
 
     st.image(
         segmentation.overlay_rgb,
@@ -198,21 +233,14 @@ if not segmentation.success:
     st.stop()
 
 
-# -------------------------------------------------------------
-# HSV-analysis failure
-# -------------------------------------------------------------
 if analysis is None:
     st.error(
         saved["error"]
         or "HSV analysis did not return a result."
     )
-
     st.stop()
 
 
-# -------------------------------------------------------------
-# Common result summary
-# -------------------------------------------------------------
 render_result_summary(
     analysis.method_result
 )
@@ -221,16 +249,31 @@ st.info(
     analysis.decision_reason
 )
 
-st.caption(
-    "The confidence value shows rule support. "
-    "It is not a learned probability."
+
+if analysis.quality_assessed:
+    st.success(
+        f"Surface quality: "
+        f"{analysis.predicted_quality} "
+        f"({analysis.quality_confidence_percent:.2f}% rule support)"
+    )
+
+    st.caption(
+        analysis.quality_reason
+    )
+
+else:
+    st.info(
+        "Surface quality: Not assessed"
+    )
+
+    st.caption(
+        analysis.quality_reason
+    )
+
+
+metric_columns = st.columns(
+    5
 )
-
-
-# -------------------------------------------------------------
-# Main HSV measurements
-# -------------------------------------------------------------
-metric_columns = st.columns(5)
 
 metric_columns[0].metric(
     "Green area",
@@ -258,9 +301,6 @@ metric_columns[4].metric(
 )
 
 
-# -------------------------------------------------------------
-# Tabs
-# -------------------------------------------------------------
 overview_tab, masks_tab, rules_tab = st.tabs(
     [
         "Overview",
@@ -270,11 +310,10 @@ overview_tab, masks_tab, rules_tab = st.tabs(
 )
 
 
-# =============================================================
-# OVERVIEW TAB
-# =============================================================
 with overview_tab:
-    first, second = st.columns(2)
+    first, second = st.columns(
+        2
+    )
 
     with first:
         st.markdown(
@@ -297,9 +336,9 @@ with overview_tab:
         )
 
     st.caption(
-        "Green marks green peel, yellow marks yellow peel, brown marks brown "
-        "peel and red marks very dark peel. Pixels outside the shared banana "
-        "mask are excluded from the HSV measurements."
+        "Green marks green peel, yellow marks yellow peel, brown marks "
+        "brown peel and red marks very dark peel. Pixels outside the "
+        "shared banana mask are excluded."
     )
 
     st.caption(
@@ -308,11 +347,10 @@ with overview_tab:
     )
 
 
-# =============================================================
-# HSV COLOUR MASKS TAB
-# =============================================================
 with masks_tab:
-    first, second = st.columns(2)
+    first, second = st.columns(
+        2
+    )
 
     with first:
         st.markdown(
@@ -336,7 +374,9 @@ with masks_tab:
             use_container_width=True,
         )
 
-    third, fourth = st.columns(2)
+    third, fourth = st.columns(
+        2
+    )
 
     with third:
         st.markdown(
@@ -370,33 +410,42 @@ with masks_tab:
         use_container_width=True,
     )
 
-    st.caption(
-        "White pixels belong to the named region. The unclassified mask "
-        "contains banana pixels that do not satisfy the frozen green, "
-        "yellow, brown or dark HSV ranges."
-    )
 
-
-# =============================================================
-# DECISION DETAILS TAB
-# =============================================================
 with rules_tab:
     st.write(
-        f"**Prediction:** "
+        f"**Ripeness prediction:** "
         f"{analysis.predicted_category}"
     )
 
     st.write(
-        f"**Surface grade:** "
-        f"{analysis.surface_grade}"
-    )
-
-    st.write(
-        f"**Reason:** "
+        f"**Ripeness reason:** "
         f"{analysis.decision_reason}"
     )
 
-    first, second, third = st.columns(3)
+    if analysis.quality_assessed:
+        st.write(
+            f"**Surface quality:** "
+            f"{analysis.predicted_quality}"
+        )
+
+        st.write(
+            f"**Quality rule support:** "
+            f"{analysis.quality_confidence_percent:.2f}%"
+        )
+
+        st.write(
+            f"**Quality reason:** "
+            f"{analysis.quality_reason}"
+        )
+
+    else:
+        st.write(
+            "**Surface quality:** Not assessed"
+        )
+
+    first, second, third = st.columns(
+        3
+    )
 
     first.metric(
         "Green",
@@ -413,7 +462,9 @@ with rules_tab:
         f"{analysis.brown_percentage:.2f}%",
     )
 
-    fourth, fifth, sixth = st.columns(3)
+    fourth, fifth, sixth = st.columns(
+        3
+    )
 
     fourth.metric(
         "Dark",
@@ -430,12 +481,14 @@ with rules_tab:
         f"{analysis.other_percentage:.2f}%",
     )
 
-    st.caption(
-        "Only pixels inside the shared banana segmentation mask contribute "
-        "to these percentages."
-    )
+    if analysis.quality_assessed:
+        st.metric(
+            "Yellow / deterioration ratio",
+            f"{analysis.yellow_deterioration_ratio:.2f}",
+        )
 
     st.caption(
-        "The classifier applies the frozen rules from top to bottom. "
-        "The first matching rule becomes the final prediction."
+        "All quality measurements on this page are derived from the HSV "
+        "colour masks. No morphology measurements are used by the HSV "
+        "surface-quality branch."
     )
