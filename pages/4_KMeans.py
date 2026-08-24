@@ -1,6 +1,10 @@
 import streamlit as st
 
-from branches.kmeans.kmeans_analysis import KMeansRipenessBands, analyse_kmeans
+from branches.kmeans.kmeans_analysis import (
+    KMeansQualityBands,
+    KMeansRipenessBands,
+    analyse_kmeans,
+)
 from branches.kmeans.kmeans_segmentation import KMeansParameters
 from core.banana_segmentation import segment_banana
 from core.image_handling import prepare_uploaded_image
@@ -32,6 +36,7 @@ st.warning(
 
 parameters = KMeansParameters(k=4)
 bands = KMeansRipenessBands()
+quality_bands = KMeansQualityBands()
 
 
 with st.expander("View K-means decision rules"):
@@ -50,6 +55,14 @@ with st.expander("View K-means decision rules"):
 
         4. **Ripe:** yellow cluster score ≥
            {bands.ripe_yellow_score_min * 100:.1f}%.
+
+        **Ripe-only quality**
+
+        - Damage ≤ {quality_bands.class_a_max_damage_percent:.1f}% → **Class_A**
+        - Damage ≥ {quality_bands.defect_min_damage_percent:.1f}% → **Defect**
+        - Otherwise → **Class_B**
+
+        Quality damage = Dark cluster % + 50% of Brown cluster %.
         """
     )
 
@@ -100,6 +113,7 @@ if st.button(
         banana_mask=segmentation.final_mask,
         parameters=parameters,
         bands=bands,
+        quality_bands=quality_bands,
     )
 
 
@@ -130,6 +144,33 @@ if st.button(
         "K-means time",
         f"{analysis.processing_time_ms:.2f} ms",
     )
+
+
+    # Ripe-only quality
+    st.markdown("### Conditional quality assessment")
+
+    if analysis.quality_assessed:
+        q1, q2, q3 = st.columns(3)
+
+        q1.metric(
+            "Quality class",
+            analysis.predicted_quality,
+        )
+
+        q2.metric(
+            "Quality damage",
+            f"{analysis.quality_damage_percent:.2f}%",
+        )
+
+        q3.metric(
+            "Quality confidence",
+            f"{analysis.quality_confidence_percent:.2f}%",
+        )
+
+        st.success(analysis.quality_reason)
+
+    else:
+        st.info(analysis.quality_reason)
 
 
     # Tabs
@@ -229,6 +270,20 @@ if st.button(
         st.write(
             f"**Reason:** {analysis.decision_reason}"
         )
+
+        if analysis.quality_assessed:
+            st.write(
+                f"**Quality:** {analysis.predicted_quality}"
+            )
+            st.write(
+                f"**Quality damage:** "
+                f"{analysis.quality_damage_percent:.2f}%"
+            )
+            st.write(
+                f"**Quality reason:** {analysis.quality_reason}"
+            )
+        else:
+            st.write("**Quality:** Not assessed")
 
         st.caption(
             "K-means first groups similar banana-peel colours. "

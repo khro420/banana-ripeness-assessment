@@ -11,7 +11,7 @@ from branches.kmeans.kmeans_segmentation import (
     segment_kmeans_colours,
 )
 
-from core.result_schema import MethodResult
+from core.result_schema import MethodResult, QUALITY_CATEGORIES
 
 
 # =========================================================
@@ -50,6 +50,14 @@ class KMeansRipenessBands:
     rotten_dark_score_min: float = 0.18
 
 
+@dataclass(frozen=True)
+class KMeansQualityBands:
+    """Simple K-means quality thresholds for Ripe bananas only."""
+
+    class_a_max_damage_percent: float = 10.0
+    defect_min_damage_percent: float = 25.0
+
+
 # =========================================================
 # Analysis result
 # =========================================================
@@ -66,6 +74,25 @@ class KMeansAnalysisResult:
     dominant_colour: str
     decision_reason: str
 
+    features: dict[str, Any]
+
+    # Quality is checked only when ripeness is Ripe.
+    quality_assessed: bool
+    predicted_quality: str | None
+    quality_confidence_percent: float | None
+    quality_reason: str
+    quality_damage_percent: float | None
+
+
+@dataclass
+class KMeansQualityResult:
+    method_result: MethodResult
+    segmentation: KMeansSegmentationResult
+    predicted_quality: str
+    confidence_percent: float
+    processing_time_ms: float
+    damage_percent: float
+    quality_reason: str
     features: dict[str, Any]
 
 
@@ -429,6 +456,89 @@ def _confidence(
     )
 
 
+
+# =========================================================
+# Ripe-only quality checking
+# =========================================================
+
+def _quality_damage_percent(
+    scores: dict[str, float],
+) -> float:
+    """
+    Estimate visible quality damage from the SAME K-means clusters.
+
+    Dark clusters count fully as damage.
+    Brown clusters count half because some brown colour can occur
+    during normal ripening.
+    """
+
+    damage = (
+        scores["Dark"]
+        + 0.50 * scores["Brown"]
+    ) * 100.0
+
+    return float(np.clip(damage, 0.0, 100.0))
+
+
+def _classify_quality(
+    damage_percent: float,
+    bands: KMeansQualityBands,
+) -> tuple[str, str]:
+    """Classify a Ripe banana as Class_A, Class_B or Defect."""
+
+    if damage_percent <= bands.class_a_max_damage_percent:
+        return (
+            "Class_A",
+            f"K-means found low visible damage ({damage_percent:.2f}%).",
+        )
+
+    if damage_percent >= bands.defect_min_damage_percent:
+        return (
+            "Defect",
+            f"K-means found high visible damage ({damage_percent:.2f}%).",
+        )
+
+    return (
+        "Class_B",
+        f"K-means found moderate visible damage ({damage_percent:.2f}%).",
+    )
+
+
+def _quality_confidence(
+    quality: str,
+    damage_percent: float,
+    bands: KMeansQualityBands,
+) -> float:
+    """Simple rule-support confidence for the quality result."""
+
+    if quality == "Class_A":
+        support = (
+            bands.class_a_max_damage_percent - damage_percent
+        ) / max(bands.class_a_max_damage_percent, 1.0)
+
+    elif quality == "Defect":
+        support = (
+            damage_percent - bands.defect_min_damage_percent
+        ) / max(100.0 - bands.defect_min_damage_percent, 1.0)
+
+    else:
+        midpoint = (
+            bands.class_a_max_damage_percent
+            + bands.defect_min_damage_percent
+        ) / 2.0
+        half_width = max(
+            (
+                bands.defect_min_damage_percent
+                - bands.class_a_max_damage_percent
+            ) / 2.0,
+            1.0,
+        )
+        support = 1.0 - abs(damage_percent - midpoint) / half_width
+
+    support = float(np.clip(support, 0.0, 1.0))
+    return 55.0 + 35.0 * support
+
+
 # =========================================================
 # Main K-means analysis function
 # =========================================================
@@ -438,6 +548,7 @@ def analyse_kmeans(
     banana_mask: np.ndarray,
     parameters: KMeansParameters | None = None,
     bands: KMeansRipenessBands | None = None,
+    quality_bands: KMeansQualityBands | None = None,
 ) -> KMeansAnalysisResult:
     """
     Analyse banana ripeness using K-means colour clustering.
@@ -484,6 +595,11 @@ def analyse_kmeans(
         or KMeansRipenessBands()
     )
 
+    quality_bands = (
+        quality_bands
+        or KMeansQualityBands()
+    )
+
     # -----------------------------------------------------
     # Perform K-means colour clustering
     # -----------------------------------------------------
@@ -519,6 +635,32 @@ def analyse_kmeans(
         category=category,
         scores=scores,
     )
+
+    # -----------------------------------------------------
+    # Ripe-only quality checking
+    # -----------------------------------------------------
+
+    quality_assessed = category == "Ripe"
+    predicted_quality = None
+    quality_confidence = None
+    quality_damage = None
+
+    if quality_assessed:
+        quality_damage = _quality_damage_percent(scores)
+        predicted_quality, quality_reason = _classify_quality(
+            quality_damage,
+            quality_bands,
+        )
+        quality_confidence = _quality_confidence(
+            predicted_quality,
+            quality_damage,
+            quality_bands,
+        )
+    else:
+        quality_reason = (
+            f"Quality was not checked because ripeness was predicted as "
+            f"{category}. Quality checking only applies to Ripe bananas."
+        )
 
     # -----------------------------------------------------
     # Processing time
@@ -576,6 +718,29 @@ def analyse_kmeans(
                 scores["Other"] * 100.0,
                 2,
             ),
+
+        "Quality assessed":
+            quality_assessed,
+
+        "Quality class":
+            predicted_quality or "Not assessed",
+
+        "Quality damage (%)":
+            (
+                None
+                if quality_damage is None
+                else round(quality_damage, 2)
+            ),
+
+        "Quality confidence (%)":
+            (
+                None
+                if quality_confidence is None
+                else round(quality_confidence, 2)
+            ),
+
+        "Quality reason":
+            quality_reason,
 
         "Number of clusters":
             parameters.k,
@@ -660,6 +825,14 @@ def analyse_kmeans(
                 "Overripe or Rotten."
             ),
             (
+                "Quality is checked only when the K-means ripeness "
+                "prediction is Ripe."
+            ),
+            (
+                "Quality reuses the same Brown and Dark K-means clusters; "
+                "no morphology blemish mask is used."
+            ),
+            (
                 "Confidence represents rule support "
                 "rather than a statistical probability."
             ),
@@ -688,5 +861,108 @@ def analyse_kmeans(
 
         decision_reason=reason,
 
+        features=features,
+
+        quality_assessed=quality_assessed,
+
+        predicted_quality=predicted_quality,
+
+        quality_confidence_percent=quality_confidence,
+
+        quality_reason=quality_reason,
+
+        quality_damage_percent=quality_damage,
+    )
+
+
+# =========================================================
+# Quality-dataset analysis
+# =========================================================
+
+def analyse_kmeans_quality(
+    rgb_image: np.ndarray,
+    banana_mask: np.ndarray,
+    parameters: KMeansParameters | None = None,
+    quality_bands: KMeansQualityBands | None = None,
+) -> KMeansQualityResult:
+    """
+    Grade a banana whose ripeness is already known to be Ripe.
+
+    This is used by dataset/Quality/test, where only
+    Class_A, Class_B and Defect are evaluated.
+    """
+
+    start_time = perf_counter()
+
+    parameters = parameters or KMeansParameters(k=4)
+    quality_bands = quality_bands or KMeansQualityBands()
+
+    segmentation = segment_kmeans_colours(
+        rgb_image=rgb_image,
+        banana_mask=banana_mask,
+        parameters=parameters,
+    )
+
+    scores = _calculate_colour_scores(segmentation)
+    damage_percent = _quality_damage_percent(scores)
+
+    quality, reason = _classify_quality(
+        damage_percent,
+        quality_bands,
+    )
+
+    confidence = _quality_confidence(
+        quality,
+        damage_percent,
+        quality_bands,
+    )
+
+    processing_time_ms = (
+        perf_counter()
+        - start_time
+    ) * 1000.0
+
+    features = {
+        "Known ripeness": "Ripe",
+        "Brown proportion (%)": round(scores["Brown"] * 100.0, 2),
+        "Dark proportion (%)": round(scores["Dark"] * 100.0, 2),
+        "Quality damage (%)": round(damage_percent, 2),
+        "Quality class": quality,
+        "Quality reason": reason,
+        "Number of clusters": parameters.k,
+    }
+
+    class_scores = {
+        name: 0.0
+        for name in QUALITY_CATEGORIES
+    }
+    class_scores[quality] = confidence / 100.0
+
+    method_result = MethodResult(
+        method_key="kmeans",
+        method_name="K-means - Ripe Banana Quality Analysis",
+        predicted_category=quality,
+        confidence_percent=round(confidence, 2),
+        processing_time_ms=round(processing_time_ms, 2),
+        class_scores=class_scores,
+        features=features,
+        notes=[
+            "The quality dataset is treated as already Ripe.",
+            "Quality is derived from K-means Brown and Dark clusters.",
+            "Dark clusters count fully and Brown clusters count half "
+            "toward the quality-damage score.",
+            "No morphology blemish mask is used.",
+        ],
+        is_placeholder=False,
+    )
+
+    return KMeansQualityResult(
+        method_result=method_result,
+        segmentation=segmentation,
+        predicted_quality=quality,
+        confidence_percent=confidence,
+        processing_time_ms=processing_time_ms,
+        damage_percent=damage_percent,
+        quality_reason=reason,
         features=features,
     )
