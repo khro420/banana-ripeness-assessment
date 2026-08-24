@@ -8,7 +8,7 @@
     "Rotten"
   ],
   "status": "Ripeness evaluation completed for Morphology, HSV, K-means, GLCM Texture and Hybrid.",
-  "generated_at": "2026-08-21T23:43:27+08:00",
+  "generated_at": "2026-08-24T16:23:56+08:00",
   "dataset_split": "test",
   "dataset_directory": "dataset/ripeness/test",
   "image_count": 562,
@@ -28,7 +28,7 @@
       "status": "Completed",
       "overall_accuracy": 0.6120996441281139,
       "macro_f1": 0.6125611632621991,
-      "average_processing_time_ms": 67.18694216992667,
+      "average_processing_time_ms": 19.61026140455541,
       "successful_images": 562,
       "failed_images": 0,
       "per_class": {
@@ -110,7 +110,7 @@
       "status": "Completed",
       "overall_accuracy": 0.7775800711743772,
       "macro_f1": 0.7855000892396186,
-      "average_processing_time_ms": 58.665404091895724,
+      "average_processing_time_ms": 16.29724862092105,
       "successful_images": 562,
       "failed_images": 0,
       "per_class": {
@@ -190,34 +190,34 @@
       "approach": "K-means",
       "implemented": true,
       "status": "Completed",
-      "overall_accuracy": 0.49466192170818507,
-      "macro_f1": 0.4868796412698664,
-      "average_processing_time_ms": 208.12414697532168,
+      "overall_accuracy": 0.5338078291814946,
+      "macro_f1": 0.5262709559832672,
+      "average_processing_time_ms": 62.18982758758643,
       "successful_images": 562,
       "failed_images": 0,
       "per_class": {
         "Unripe": {
-          "precision": 0.9591836734693877,
-          "recall": 0.8545454545454545,
-          "f1": 0.9038461538461539,
+          "precision": 0.9509803921568627,
+          "recall": 0.8818181818181818,
+          "f1": 0.9150943396226415,
           "support": 110
         },
         "Ripe": {
-          "precision": 0.545816733067729,
-          "recall": 0.8896103896103896,
-          "f1": 0.6765432098765433,
+          "precision": 0.54296875,
+          "recall": 0.9025974025974026,
+          "f1": 0.6780487804878049,
           "support": 154
         },
         "Overripe": {
-          "precision": 0.1721311475409836,
-          "recall": 0.18584070796460178,
-          "f1": 0.17872340425531916,
+          "precision": 0.2627118644067797,
+          "recall": 0.2743362831858407,
+          "f1": 0.2683982683982684,
           "support": 113
         },
         "Rotten": {
-          "precision": 0.2857142857142857,
-          "recall": 0.14054054054054055,
-          "f1": 0.18840579710144928,
+          "precision": 0.38372093023255816,
+          "recall": 0.1783783783783784,
+          "f1": 0.24354243542435425,
           "support": 185
         }
       },
@@ -237,31 +237,31 @@
         ],
         "values": [
           [
-            94,
-            15,
+            97,
+            12,
             1,
             0,
             0
           ],
           [
-            0,
-            137,
-            17,
+            1,
+            139,
+            14,
             0,
             0
           ],
           [
             0,
-            27,
-            21,
-            65,
+            29,
+            31,
+            53,
             0
           ],
           [
             4,
+            76,
             72,
-            83,
-            26,
+            33,
             0
           ]
         ]
@@ -274,7 +274,7 @@
       "status": "Completed",
       "overall_accuracy": 0.45195729537366547,
       "macro_f1": 0.4329210957887428,
-      "average_processing_time_ms": 1051.7615105000198,
+      "average_processing_time_ms": 300.9583266773858,
       "successful_images": 562,
       "failed_images": 0,
       "per_class": {
@@ -356,7 +356,7 @@
       "status": "Completed",
       "overall_accuracy": 0.7846975088967971,
       "macro_f1": 0.7930923445744775,
-      "average_processing_time_ms": 1279.5207028515179,
+      "average_processing_time_ms": 376.3378222638178,
       "successful_images": 562,
       "failed_images": 0,
       "per_class": {
