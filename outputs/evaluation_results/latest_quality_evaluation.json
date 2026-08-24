@@ -1,15 +1,15 @@
 {
-  "schema_version": 5,
+  "schema_version": 6,
   "evaluation_mode": "quality",
   "categories": [
     "Class_A",
     "Class_B",
     "Defect"
   ],
-  "status": "Quality evaluation completed for Morphology. HSV, K-means, GLCM Texture and Hybrid are not implemented for quality.",
-  "generated_at": "2026-08-21T20:51:48+08:00",
-  "dataset_split": "quality",
-  "dataset_directory": "dataset/Quality",
+  "status": "Quality evaluation completed for Morphology and HSV. K-means, GLCM Texture and Hybrid are not implemented for quality.",
+  "generated_at": "2026-08-21T23:56:10+08:00",
+  "dataset_split": "test",
+  "dataset_directory": "dataset/quality/test",
   "image_count": 898,
   "successful_images": 898,
   "failed_images": 0,
@@ -26,7 +26,7 @@
       "status": "Completed",
       "overall_accuracy": 0.7416481069042317,
       "macro_f1": 0.7228197507532951,
-      "average_processing_time_ms": 46.59640311567115,
+      "average_processing_time_ms": 62.761085632439695,
       "successful_images": 898,
       "failed_images": 0,
       "per_class": {
@@ -86,34 +86,66 @@
     "hsv": {
       "method_key": "hsv",
       "approach": "HSV",
-      "implemented": false,
-      "status": "Not implemented",
-      "overall_accuracy": null,
-      "macro_f1": null,
-      "average_processing_time_ms": null,
-      "successful_images": null,
-      "failed_images": null,
+      "implemented": true,
+      "status": "Completed",
+      "overall_accuracy": 0.6069042316258352,
+      "macro_f1": 0.5566548898525815,
+      "average_processing_time_ms": 57.17050166824472,
+      "successful_images": 898,
+      "failed_images": 0,
       "per_class": {
         "Class_A": {
-          "precision": null,
-          "recall": null,
-          "f1": null,
-          "support": null
+          "precision": 0.652317880794702,
+          "recall": 0.5225464190981433,
+          "f1": 0.5802650957290133,
+          "support": 377
         },
         "Class_B": {
-          "precision": null,
-          "recall": null,
-          "f1": null,
-          "support": null
+          "precision": 0.3125,
+          "recall": 0.25229357798165136,
+          "f1": 0.27918781725888325,
+          "support": 218
         },
         "Defect": {
-          "precision": null,
-          "recall": null,
-          "f1": null,
-          "support": null
+          "precision": 0.6976190476190476,
+          "recall": 0.966996699669967,
+          "f1": 0.8105117565698479,
+          "support": 303
         }
       },
-      "confusion_matrix": null
+      "confusion_matrix": {
+        "actual_labels": [
+          "Class_A",
+          "Class_B",
+          "Defect"
+        ],
+        "predicted_labels": [
+          "Class_A",
+          "Class_B",
+          "Defect",
+          "Failed"
+        ],
+        "values": [
+          [
+            197,
+            121,
+            59,
+            0
+          ],
+          [
+            95,
+            55,
+            68,
+            0
+          ],
+          [
+            10,
+            0,
+            293,
+            0
+          ]
+        ]
+      }
     },
     "kmeans": {
       "method_key": "kmeans",
@@ -231,6 +263,27 @@
       "class_a_max_total_dark_percent": 23.5,
       "defect_min_total_dark_percent": 37.25,
       "extreme_dark_intensity_threshold": 50
+    },
+    "hsv_parameters": {
+      "green_hue_min": 35,
+      "green_hue_max": 85,
+      "green_saturation_min": 35,
+      "green_value_min": 35,
+      "yellow_hue_min": 18,
+      "yellow_hue_max": 34,
+      "yellow_saturation_min": 35,
+      "yellow_value_min": 70,
+      "brown_hue_min": 5,
+      "brown_hue_max": 17,
+      "brown_saturation_min": 35,
+      "brown_value_min": 35,
+      "brown_value_max": 180,
+      "dark_value_max": 70
+    },
+    "hsv_quality_bands": {
+      "defect_min_deteriorated_percent": 31.85,
+      "class_b_max_brown_percent": 13.75,
+      "class_b_max_yellow_deterioration_ratio": 7.65
     }
   }
 }
