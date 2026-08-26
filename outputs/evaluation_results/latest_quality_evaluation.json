@@ -6,8 +6,8 @@
     "Class_B",
     "Defect"
   ],
-  "status": "Quality evaluation completed for Morphology and HSV. K-means, GLCM Texture and Hybrid are not implemented for quality.",
-  "generated_at": "2026-08-21T23:56:10+08:00",
+  "status": "Quality evaluation completed for Morphology, HSV and K-means. GLCM Texture and Hybrid are not implemented for quality.",
+  "generated_at": "2026-08-26T16:46:22+08:00",
   "dataset_split": "test",
   "dataset_directory": "dataset/quality/test",
   "image_count": 898,
@@ -26,7 +26,7 @@
       "status": "Completed",
       "overall_accuracy": 0.7416481069042317,
       "macro_f1": 0.7228197507532951,
-      "average_processing_time_ms": 62.761085632439695,
+      "average_processing_time_ms": 21.931723145907277,
       "successful_images": 898,
       "failed_images": 0,
       "per_class": {
@@ -90,7 +90,7 @@
       "status": "Completed",
       "overall_accuracy": 0.6069042316258352,
       "macro_f1": 0.5566548898525815,
-      "average_processing_time_ms": 57.17050166824472,
+      "average_processing_time_ms": 18.998914706913993,
       "successful_images": 898,
       "failed_images": 0,
       "per_class": {
@@ -150,34 +150,66 @@
     "kmeans": {
       "method_key": "kmeans",
       "approach": "K-means",
-      "implemented": false,
-      "status": "Not implemented",
-      "overall_accuracy": null,
-      "macro_f1": null,
-      "average_processing_time_ms": null,
-      "successful_images": null,
-      "failed_images": null,
+      "implemented": true,
+      "status": "Completed",
+      "overall_accuracy": 0.6414253897550112,
+      "macro_f1": 0.6353834937591183,
+      "average_processing_time_ms": 75.73242644209591,
+      "successful_images": 898,
+      "failed_images": 0,
       "per_class": {
         "Class_A": {
-          "precision": null,
-          "recall": null,
-          "f1": null,
-          "support": null
+          "precision": 0.7246835443037974,
+          "recall": 0.6074270557029178,
+          "f1": 0.6608946608946609,
+          "support": 377
         },
         "Class_B": {
-          "precision": null,
-          "recall": null,
-          "f1": null,
-          "support": null
+          "precision": 0.3512658227848101,
+          "recall": 0.5091743119266054,
+          "f1": 0.4157303370786517,
+          "support": 218
         },
         "Defect": {
-          "precision": null,
-          "recall": null,
-          "f1": null,
-          "support": null
+          "precision": 0.8872180451127819,
+          "recall": 0.7788778877887789,
+          "f1": 0.8295254833040422,
+          "support": 303
         }
       },
-      "confusion_matrix": null
+      "confusion_matrix": {
+        "actual_labels": [
+          "Class_A",
+          "Class_B",
+          "Defect"
+        ],
+        "predicted_labels": [
+          "Class_A",
+          "Class_B",
+          "Defect",
+          "Failed"
+        ],
+        "values": [
+          [
+            229,
+            140,
+            8,
+            0
+          ],
+          [
+            85,
+            111,
+            22,
+            0
+          ],
+          [
+            2,
+            65,
+            236,
+            0
+          ]
+        ]
+      }
     },
     "glcm": {
       "method_key": "glcm",
@@ -284,6 +316,16 @@
       "defect_min_deteriorated_percent": 31.85,
       "class_b_max_brown_percent": 13.75,
       "class_b_max_yellow_deterioration_ratio": 7.65
+    },
+    "kmeans_parameters": {
+      "k": 4,
+      "attempts": 10,
+      "max_iterations": 100,
+      "epsilon": 0.2
+    },
+    "kmeans_quality_bands": {
+      "class_a_max_damage_percent": 10.0,
+      "defect_min_damage_percent": 25.0
     }
   }
 }

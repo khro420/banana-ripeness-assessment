@@ -8,7 +8,7 @@
     "Rotten"
   ],
   "status": "Ripeness evaluation completed for Morphology, HSV, K-means, GLCM Texture and Hybrid.",
-  "generated_at": "2026-08-24T17:18:53+08:00",
+  "generated_at": "2026-08-26T16:43:19+08:00",
   "dataset_split": "test",
   "dataset_directory": "dataset/ripeness/test",
   "image_count": 562,
@@ -28,7 +28,7 @@
       "status": "Completed",
       "overall_accuracy": 0.6120996441281139,
       "macro_f1": 0.6125611632621991,
-      "average_processing_time_ms": 20.20872495774332,
+      "average_processing_time_ms": 19.809754924883684,
       "successful_images": 562,
       "failed_images": 0,
       "per_class": {
@@ -110,7 +110,7 @@
       "status": "Completed",
       "overall_accuracy": 0.7775800711743772,
       "macro_f1": 0.7855000892396186,
-      "average_processing_time_ms": 17.003151128487826,
+      "average_processing_time_ms": 16.615907054877027,
       "successful_images": 562,
       "failed_images": 0,
       "per_class": {
@@ -192,7 +192,7 @@
       "status": "Completed",
       "overall_accuracy": 0.5338078291814946,
       "macro_f1": 0.5262709559832672,
-      "average_processing_time_ms": 64.12900564094237,
+      "average_processing_time_ms": 62.5054014694716,
       "successful_images": 562,
       "failed_images": 0,
       "per_class": {
@@ -274,7 +274,7 @@
       "status": "Completed",
       "overall_accuracy": 0.45195729537366547,
       "macro_f1": 0.4329210957887428,
-      "average_processing_time_ms": 306.02262213016655,
+      "average_processing_time_ms": 302.8354126848259,
       "successful_images": 562,
       "failed_images": 0,
       "per_class": {
@@ -356,7 +356,7 @@
       "status": "Completed",
       "overall_accuracy": 0.7846975088967971,
       "macro_f1": 0.7930923445744775,
-      "average_processing_time_ms": 383.7394490768869,
+      "average_processing_time_ms": 378.6709632967861,
       "successful_images": 562,
       "failed_images": 0,
       "per_class": {

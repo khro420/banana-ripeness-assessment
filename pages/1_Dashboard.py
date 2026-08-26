@@ -167,8 +167,8 @@ if evaluation_mode == EVALUATION_MODE_RIPENESS:
 else:
     st.info(
         "Quality mode treats every image as already Ripe and predicts only "
-        "Class_A, Class_B, or Defect. Morphology and HSV are implemented "
-        "independently; K-means, GLCM Texture, and Hybrid remain Not implemented."
+        "Class_A, Class_B, or Defect. Morphology, HSV, and K-means are "
+        "implemented independently; GLCM Texture and Hybrid remain Not implemented."
     )
 
 report_state_key = f"evaluation_report_{evaluation_mode}"

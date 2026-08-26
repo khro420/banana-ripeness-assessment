@@ -607,6 +607,7 @@ def _evaluate_quality_image(
 
     return record
 
+
 def _calculate_method_metrics(
     records: list[dict[str, Any]],
     method_key: str,
