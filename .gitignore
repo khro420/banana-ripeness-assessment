@@ -13,7 +13,8 @@ ENV/
 .env
 .env.*
 !.env.example
-.streamlit/secrets.toml
+.streamlit/secrets.*
+!.streamlit/secrets.example.toml
 .streamlit/cache/
 
 # Testing and development caches
@@ -35,6 +36,8 @@ dist/
 .vscode/
 .idea/
 *.code-workspace
+.agents/
+.claude/
 
 # Operating-system junk
 .DS_Store
@@ -58,5 +61,13 @@ morphology_validation_*.csv
 evaluation_exports/
 exported_results/
 
-# Keep latest_evaluation.json tracked if the dashboard
-# should display the latest result immediately after cloning.
+# Reproducible experiment artifacts. Keep final reports, not raw predictions.
+outputs/morphology_tuning/
+outputs/morphology_quality_tuning/
+outputs/morphology_quality_tuning_70_30/
+outputs/hybrid_tuning/*
+!outputs/hybrid_tuning/weight_calibration_report.json
+!outputs/hybrid_tuning/test_weight_evaluation.json
+
+# The quality split manifest is intentionally not ignored: it records the
+# 70/30 split after the dataset itself is downloaded separately.

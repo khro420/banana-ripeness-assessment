@@ -1,0 +1,23 @@
+{
+  "records": 562,
+  "old_weights": {
+    "accuracy": 0.782918,
+    "macro_f1": 0.792336,
+    "per_class_f1": {
+      "Unripe": 0.909091,
+      "Ripe": 0.752187,
+      "Overripe": 0.75,
+      "Rotten": 0.758065
+    }
+  },
+  "frozen_validation_selected_weights": {
+    "accuracy": 0.80605,
+    "macro_f1": 0.812637,
+    "per_class_f1": {
+      "Unripe": 0.917874,
+      "Ripe": 0.793846,
+      "Overripe": 0.756219,
+      "Rotten": 0.782609
+    }
+  }
+}

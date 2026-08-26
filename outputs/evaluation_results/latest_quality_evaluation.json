@@ -7,16 +7,16 @@
     "Defect"
   ],
   "status": "Quality evaluation completed for Morphology, HSV and K-means. GLCM Texture and Hybrid are not implemented for quality.",
-  "generated_at": "2026-08-26T16:46:22+08:00",
+  "generated_at": "2026-08-27T00:11:08+08:00",
   "dataset_split": "test",
   "dataset_directory": "dataset/quality/test",
-  "image_count": 898,
-  "successful_images": 898,
+  "image_count": 359,
+  "successful_images": 359,
   "failed_images": 0,
   "class_counts": {
-    "Class_A": 377,
-    "Class_B": 218,
-    "Defect": 303
+    "Class_A": 151,
+    "Class_B": 87,
+    "Defect": 121
   },
   "methods": {
     "morphology": {
@@ -24,29 +24,29 @@
       "approach": "Morphology",
       "implemented": true,
       "status": "Completed",
-      "overall_accuracy": 0.7416481069042317,
-      "macro_f1": 0.7228197507532951,
-      "average_processing_time_ms": 21.931723145907277,
-      "successful_images": 898,
+      "overall_accuracy": 0.7325905292479109,
+      "macro_f1": 0.7098661177396027,
+      "average_processing_time_ms": 34.11813927678168,
+      "successful_images": 359,
       "failed_images": 0,
       "per_class": {
         "Class_A": {
-          "precision": 0.8005540166204986,
-          "recall": 0.76657824933687,
-          "f1": 0.7831978319783198,
-          "support": 377
+          "precision": 0.7417218543046358,
+          "recall": 0.7417218543046358,
+          "f1": 0.7417218543046358,
+          "support": 151
         },
         "Class_B": {
-          "precision": 0.4820717131474104,
-          "recall": 0.555045871559633,
-          "f1": 0.5159914712153518,
-          "support": 218
+          "precision": 0.46153846153846156,
+          "recall": 0.4827586206896552,
+          "f1": 0.47191011235955055,
+          "support": 87
         },
         "Defect": {
-          "precision": 0.8951048951048951,
-          "recall": 0.8448844884488449,
-          "f1": 0.8692699490662139,
-          "support": 303
+          "precision": 0.9316239316239316,
+          "recall": 0.9008264462809917,
+          "f1": 0.9159663865546218,
+          "support": 121
         }
       },
       "confusion_matrix": {
@@ -63,21 +63,21 @@
         ],
         "values": [
           [
-            289,
-            83,
-            5,
+            112,
+            37,
+            2,
             0
           ],
           [
-            72,
-            121,
-            25,
+            39,
+            42,
+            6,
             0
           ],
           [
             0,
-            47,
-            256,
+            12,
+            109,
             0
           ]
         ]
@@ -88,29 +88,29 @@
       "approach": "HSV",
       "implemented": true,
       "status": "Completed",
-      "overall_accuracy": 0.6069042316258352,
-      "macro_f1": 0.5566548898525815,
-      "average_processing_time_ms": 18.998914706913993,
-      "successful_images": 898,
+      "overall_accuracy": 0.6740947075208914,
+      "macro_f1": 0.640243266680399,
+      "average_processing_time_ms": 33.20776072848319,
+      "successful_images": 359,
       "failed_images": 0,
       "per_class": {
         "Class_A": {
-          "precision": 0.652317880794702,
-          "recall": 0.5225464190981433,
-          "f1": 0.5802650957290133,
-          "support": 377
+          "precision": 0.72,
+          "recall": 0.5960264900662252,
+          "f1": 0.6521739130434783,
+          "support": 151
         },
         "Class_B": {
-          "precision": 0.3125,
-          "recall": 0.25229357798165136,
-          "f1": 0.27918781725888325,
-          "support": 218
+          "precision": 0.45454545454545453,
+          "recall": 0.40229885057471265,
+          "f1": 0.4268292682926829,
+          "support": 87
         },
         "Defect": {
-          "precision": 0.6976190476190476,
-          "recall": 0.966996699669967,
-          "f1": 0.8105117565698479,
-          "support": 303
+          "precision": 0.7452229299363057,
+          "recall": 0.9669421487603306,
+          "f1": 0.841726618705036,
+          "support": 121
         }
       },
       "confusion_matrix": {
@@ -127,21 +127,21 @@
         ],
         "values": [
           [
-            197,
-            121,
-            59,
+            90,
+            42,
+            19,
             0
           ],
           [
-            95,
-            55,
-            68,
+            31,
+            35,
+            21,
             0
           ],
           [
-            10,
+            4,
             0,
-            293,
+            117,
             0
           ]
         ]
@@ -152,29 +152,29 @@
       "approach": "K-means",
       "implemented": true,
       "status": "Completed",
-      "overall_accuracy": 0.6414253897550112,
-      "macro_f1": 0.6353834937591183,
-      "average_processing_time_ms": 75.73242644209591,
-      "successful_images": 898,
+      "overall_accuracy": 0.6796657381615598,
+      "macro_f1": 0.6656974325607193,
+      "average_processing_time_ms": 110.7386195004858,
+      "successful_images": 359,
       "failed_images": 0,
       "per_class": {
         "Class_A": {
-          "precision": 0.7246835443037974,
-          "recall": 0.6074270557029178,
-          "f1": 0.6608946608946609,
-          "support": 377
+          "precision": 0.7222222222222222,
+          "recall": 0.6887417218543046,
+          "f1": 0.7050847457627119,
+          "support": 151
         },
         "Class_B": {
-          "precision": 0.3512658227848101,
-          "recall": 0.5091743119266054,
-          "f1": 0.4157303370786517,
-          "support": 218
+          "precision": 0.3853211009174312,
+          "recall": 0.4827586206896552,
+          "f1": 0.42857142857142855,
+          "support": 87
         },
         "Defect": {
-          "precision": 0.8872180451127819,
-          "recall": 0.7788778877887789,
-          "f1": 0.8295254833040422,
-          "support": 303
+          "precision": 0.9245283018867925,
+          "recall": 0.8099173553719008,
+          "f1": 0.8634361233480177,
+          "support": 121
         }
       },
       "confusion_matrix": {
@@ -191,21 +191,21 @@
         ],
         "values": [
           [
-            229,
-            140,
-            8,
+            104,
+            44,
+            3,
             0
           ],
           [
-            85,
-            111,
-            22,
+            40,
+            42,
+            5,
             0
           ],
           [
-            2,
-            65,
-            236,
+            0,
+            23,
+            98,
             0
           ]
         ]
@@ -292,8 +292,8 @@
       "minimum_grid_banana_ratio": 0.01
     },
     "morphology_quality_bands": {
-      "class_a_max_total_dark_percent": 23.5,
-      "defect_min_total_dark_percent": 37.25,
+      "class_a_max_total_dark_percent": 25.75,
+      "defect_min_total_dark_percent": 35.25,
       "extreme_dark_intensity_threshold": 50
     },
     "hsv_parameters": {

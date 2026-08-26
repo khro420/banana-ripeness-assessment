@@ -1,4 +1,3 @@
-from datetime import datetime
 from numbers import Real
 
 import pandas as pd
@@ -14,23 +13,10 @@ from core.evaluation import (
     run_fixed_dataset_evaluation,
 )
 from core.result_schema import QUALITY_CATEGORIES, RIPENESS_CATEGORIES
-from ui.components import apply_app_styles, page_header
+from ui.components import apply_app_styles
 
 
-PLOT_CONFIG = {
-    "displayModeBar": False,
-    "displaylogo": False,
-    "responsive": True,
-}
-
-METHOD_COLOURS = {
-    "Morphology": "#8C6D31",
-    "HSV": "#2E8B57",
-    "K-means": "#3B82F6",
-    "GLCM Texture": "#8B5CF6",
-    "Hybrid": "#D97706",
-}
-
+PLOT_CONFIG = {"displayModeBar": False, "displaylogo": False, "responsive": True}
 METRIC_COLOURS = {
     "Overall accuracy": "#2563EB",
     "Macro F1": "#D97706",
@@ -46,51 +32,25 @@ def _is_number(value: object) -> bool:
 
 def _evaluated_method_keys(report: dict) -> list[str]:
     methods = report.get("methods", {})
-    return [
-        key
-        for key in METHODS
-        if key in methods
-        and _is_number(methods[key].get("overall_accuracy"))
-    ]
+    return [key for key in METHODS if key in methods and _is_number(methods[key].get("overall_accuracy"))]
 
 
-def _overall_dataframe(
-    report: dict,
-    method_keys: list[str],
-) -> pd.DataFrame:
+def _overall_dataframe(report: dict, method_keys: list[str]) -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "Approach": METHODS[key],
+            "Overall accuracy": report["methods"][key].get("overall_accuracy"),
+            "Macro F1": report["methods"][key].get("macro_f1"),
+        }
+        for key in method_keys
+    )
+
+
+def _class_dataframe(report: dict, method_keys: list[str], categories: tuple[str, ...]) -> pd.DataFrame:
     rows = []
-
     for key in method_keys:
-        result = report["methods"][key]
-        rows.append(
-            {
-                "Approach": METHODS[key],
-                "Status": result.get("status"),
-                "Overall accuracy": result.get("overall_accuracy"),
-                "Macro F1": result.get("macro_f1"),
-                "Average processing time (ms)": result.get(
-                    "average_processing_time_ms"
-                ),
-                "Successful images": result.get("successful_images"),
-                "Failed images": result.get("failed_images"),
-            }
-        )
-
-    return pd.DataFrame(rows)
-
-
-def _class_dataframe(
-    report: dict,
-    method_keys: list[str],
-    categories: tuple[str, ...],
-) -> pd.DataFrame:
-    rows = []
-
-    for key in method_keys:
-        per_class = report["methods"][key].get("per_class", {})
-
         for category in categories:
-            metrics = per_class.get(category, {})
+            metrics = report["methods"][key].get("per_class", {}).get(category, {})
             rows.append(
                 {
                     "Approach": METHODS[key],
@@ -98,14 +58,12 @@ def _class_dataframe(
                     "Precision": metrics.get("precision"),
                     "Recall": metrics.get("recall"),
                     "F1": metrics.get("f1"),
-                    "Support": metrics.get("support"),
                 }
             )
-
     return pd.DataFrame(rows)
 
 
-def _style_figure(figure, height: int = 430):
+def _style_figure(figure, height: int = 400):
     figure.update_layout(
         template="plotly_white",
         height=height,
@@ -116,26 +74,8 @@ def _style_figure(figure, height: int = 430):
     return figure
 
 
-def _format_generated_at(value: str | None) -> str:
-    if not value:
-        return "Never"
-
-    try:
-        generated = datetime.fromisoformat(value)
-        return generated.strftime("%d %b %Y, %I:%M %p")
-    except ValueError:
-        return value
-
-
 apply_app_styles()
-
-page_header(
-    "Evaluation Dashboard",
-    (
-        "Switch between the fixed ripeness test set and the ripe-only "
-        "quality dataset. Each mode keeps its own latest result."
-    ),
-)
+st.title("Evaluation dashboard")
 
 mode_label = st.radio(
     "Evaluation mode",
@@ -143,94 +83,24 @@ mode_label = st.radio(
     horizontal=True,
     key="evaluation_mode_selector",
 )
-evaluation_mode = (
-    EVALUATION_MODE_QUALITY
-    if mode_label == "Quality"
-    else EVALUATION_MODE_RIPENESS
-)
-categories = (
-    QUALITY_CATEGORIES
-    if evaluation_mode == EVALUATION_MODE_QUALITY
-    else RIPENESS_CATEGORIES
-)
-class_axis_title = (
-    "Quality class"
-    if evaluation_mode == EVALUATION_MODE_QUALITY
-    else "Ripeness category"
-)
-
-if evaluation_mode == EVALUATION_MODE_RIPENESS:
-    st.warning(
-        "Final ripeness-test results are for reporting only. Threshold and "
-        "hybrid calibration belongs to the validation data."
-    )
-else:
-    st.info(
-        "Quality mode treats every image as already Ripe and predicts only "
-        "Class_A, Class_B, or Defect. Morphology, HSV, and K-means are "
-        "implemented independently; GLCM Texture and Hybrid remain Not implemented."
-    )
+evaluation_mode = EVALUATION_MODE_QUALITY if mode_label == "Quality" else EVALUATION_MODE_RIPENESS
+categories = QUALITY_CATEGORIES if evaluation_mode == EVALUATION_MODE_QUALITY else RIPENESS_CATEGORIES
+class_axis_title = "Quality class" if evaluation_mode == EVALUATION_MODE_QUALITY else "Ripeness category"
 
 report_state_key = f"evaluation_report_{evaluation_mode}"
 if report_state_key not in st.session_state:
-    st.session_state[report_state_key] = load_latest_evaluation(
-        mode=evaluation_mode
-    )
-
+    st.session_state[report_state_key] = load_latest_evaluation(mode=evaluation_mode)
 report = st.session_state[report_state_key]
-evaluated_keys = _evaluated_method_keys(report)
 
-best_key = None
-if evaluated_keys:
-    best_key = max(
-        evaluated_keys,
-        key=lambda key: report["methods"][key]["overall_accuracy"],
-    )
+summary_columns = st.columns(3)
+summary_columns[0].metric("Evaluation mode", mode_label)
+summary_columns[1].metric("Images", int(report.get("image_count", 0)))
+summary_columns[2].metric("Methods evaluated", len(_evaluated_method_keys(report)))
 
-summary_columns = st.columns(4)
-summary_columns[0].metric(
-    "Evaluation mode",
-    mode_label,
-)
-summary_columns[1].metric(
-    "Images",
-    int(report.get("image_count", 0)),
-)
-summary_columns[2].metric(
-    "Best approach",
-    METHODS[best_key] if best_key else "Not evaluated",
-)
-summary_columns[3].metric(
-    "Best accuracy",
-    (
-        f"{report['methods'][best_key]['overall_accuracy']:.2%}"
-        if best_key
-        else "—"
-    ),
-)
+button_label = "Run quality evaluation" if evaluation_mode == EVALUATION_MODE_QUALITY else "Run ripeness evaluation"
+spinner_label = "Evaluating quality..." if evaluation_mode == EVALUATION_MODE_QUALITY else "Evaluating ripeness..."
 
-st.caption(
-    "Last evaluation: "
-    f"{_format_generated_at(report.get('generated_at'))} · "
-    f"{report.get('status', 'No evaluation status available.')}"
-)
-
-button_label = (
-    "Run ripe-banana quality evaluation"
-    if evaluation_mode == EVALUATION_MODE_QUALITY
-    else "Re-run fixed ripeness test-set evaluation"
-)
-spinner_label = (
-    "Evaluating the quality dataset..."
-    if evaluation_mode == EVALUATION_MODE_QUALITY
-    else "Evaluating the fixed ripeness test set..."
-)
-
-if st.button(
-    button_label,
-    type="primary",
-    use_container_width=True,
-):
+if st.button(button_label, type="primary", width="stretch"):
     progress_bar = st.progress(0)
     progress_text = st.empty()
 
@@ -240,20 +110,13 @@ if st.button(
 
     try:
         with st.spinner(spinner_label):
-            report = run_fixed_dataset_evaluation(
-                progress_callback=update_progress,
-                mode=evaluation_mode,
-            )
-
+            report = run_fixed_dataset_evaluation(progress_callback=update_progress, mode=evaluation_mode)
         st.session_state[report_state_key] = report
         progress_bar.progress(100)
         progress_text.success("Evaluation completed and saved.")
-        evaluated_keys = _evaluated_method_keys(report)
-
     except EvaluationError as error:
         progress_text.empty()
         st.error(str(error))
-
     except Exception as error:
         progress_text.empty()
         st.error(f"Evaluation stopped unexpectedly: {error}")
@@ -261,135 +124,37 @@ if st.button(
 
 report = st.session_state[report_state_key]
 evaluated_keys = _evaluated_method_keys(report)
-
-if evaluation_mode == EVALUATION_MODE_QUALITY:
-    quality_status = _overall_dataframe(report, list(METHODS))[
-        ["Approach", "Status"]
-    ]
-    st.markdown("#### Quality-mode implementation status")
-    st.dataframe(
-        quality_status,
-        hide_index=True,
-        use_container_width=True,
-    )
-
 if not evaluated_keys:
-    st.info(
-        f"No completed {mode_label.lower()} evaluation is available. "
-        "Run the evaluation to generate the result visualisations."
-    )
+    st.info(f"No completed {mode_label.lower()} evaluation is available. Run the evaluation to generate results.")
     st.stop()
 
-overall = _overall_dataframe(report, list(METHODS))
-evaluated_overall = _overall_dataframe(report, evaluated_keys)
+overall = _overall_dataframe(report, evaluated_keys)
 per_class = _class_dataframe(report, evaluated_keys, categories)
 
 st.divider()
-st.subheader("Overall performance")
+st.subheader("Approach results")
 
-performance_long = evaluated_overall.melt(
-    id_vars="Approach",
-    value_vars=["Overall accuracy", "Macro F1"],
-    var_name="Metric",
-    value_name="Score",
-)
-
-performance_figure = px.bar(
-    performance_long,
-    x="Approach",
-    y="Score",
-    color="Metric",
-    barmode="group",
-    color_discrete_map=METRIC_COLOURS,
-    category_orders={
-        "Approach": [METHODS[key] for key in evaluated_keys],
-        "Metric": ["Overall accuracy", "Macro F1"],
-    },
-)
-performance_figure.update_traces(
-    texttemplate="%{y:.1%}",
-    textposition="outside",
-    cliponaxis=False,
-)
-performance_figure.update_yaxes(
-    title="Score",
-    range=[0, 1.08],
-    tickformat=".0%",
-)
-performance_figure.update_xaxes(title=None)
-_style_figure(performance_figure)
-
-st.plotly_chart(
-    performance_figure,
-    use_container_width=True,
-    config=PLOT_CONFIG,
-)
-
-st.caption(
-    "Overall accuracy measures the proportion of correctly classified "
-    f"images. Macro F1 gives equal importance to all {len(categories)} "
-    f"{class_axis_title.lower()} values."
-)
-
-st.subheader("Per-class F1 comparison")
-
-method_order = [METHODS[key] for key in evaluated_keys]
-f1_matrix = (
-    per_class.pivot(index="Approach", columns="Category", values="F1")
-    .reindex(index=method_order, columns=list(categories))
-)
-
-f1_figure = px.imshow(
-    f1_matrix,
-    zmin=0,
-    zmax=1,
-    text_auto=".3f",
-    aspect="auto",
-    color_continuous_scale="YlGn",
-    labels={
-        "x": class_axis_title,
-        "y": "Approach",
-        "color": "F1",
-    },
-)
-f1_figure.update_xaxes(side="top")
-_style_figure(f1_figure, height=max(360, 78 * len(method_order)))
-
-st.plotly_chart(
-    f1_figure,
-    use_container_width=True,
-    config=PLOT_CONFIG,
-)
-
-st.caption(
-    "The heatmap exposes class-specific strengths and weaknesses that a "
-    "single overall score would hide."
-)
-
-st.subheader("Detailed approach results")
-
-default_detail_index = (
-    evaluated_keys.index("hybrid")
-    if "hybrid" in evaluated_keys
-    else 0
-)
-
+default_index = evaluated_keys.index("morphology") if "morphology" in evaluated_keys else 0
 selected_key = st.selectbox(
     "Approach",
     options=evaluated_keys,
-    index=default_detail_index,
+    index=default_index,
     format_func=lambda key: METHODS[key],
 )
-
 selected_name = METHODS[selected_key]
+selected_result = report["methods"][selected_key]
+selected_metrics = st.columns(3)
+selected_metrics[0].metric("Overall accuracy", f"{selected_result['overall_accuracy']:.1%}")
+selected_metrics[1].metric("Macro F1", f"{selected_result['macro_f1']:.1%}")
+selected_metrics[2].metric("Images processed", int(selected_result.get("successful_images") or 0))
+
 selected_rows = per_class[per_class["Approach"] == selected_name]
 detail_long = selected_rows.melt(
-    id_vars=["Approach", "Category", "Support"],
+    id_vars=["Approach", "Category"],
     value_vars=["Precision", "Recall", "F1"],
     var_name="Metric",
     value_name="Score",
 )
-
 detail_figure = px.bar(
     detail_long,
     x="Category",
@@ -397,158 +162,46 @@ detail_figure = px.bar(
     color="Metric",
     barmode="group",
     color_discrete_map=METRIC_COLOURS,
-    category_orders={
-        "Category": list(categories),
-        "Metric": ["Precision", "Recall", "F1"],
-    },
+    category_orders={"Category": list(categories), "Metric": ["Precision", "Recall", "F1"]},
 )
-detail_figure.update_traces(
-    texttemplate="%{y:.2f}",
-    textposition="outside",
-    cliponaxis=False,
-)
-detail_figure.update_yaxes(
-    title="Score",
-    range=[0, 1.08],
-    tickformat=".0%",
-)
+detail_figure.update_traces(texttemplate="%{y:.2f}", textposition="outside", cliponaxis=False)
+detail_figure.update_yaxes(title="Score", range=[0, 1.08], tickformat=".0%")
 detail_figure.update_xaxes(title=None)
-_style_figure(detail_figure)
+st.plotly_chart(_style_figure(detail_figure), width="stretch", config=PLOT_CONFIG)
 
-st.plotly_chart(
-    detail_figure,
-    use_container_width=True,
-    config=PLOT_CONFIG,
+st.divider()
+st.subheader("Approach comparison")
+
+performance_long = overall.melt(
+    id_vars="Approach",
+    value_vars=["Overall accuracy", "Macro F1"],
+    var_name="Metric",
+    value_name="Score",
 )
-
-st.subheader("Confusion matrix")
-
-matrix_information = report["methods"][selected_key].get("confusion_matrix")
-
-if matrix_information is None:
-    st.info(f"No confusion matrix is available for {selected_name}.")
-else:
-    predicted_labels = list(matrix_information["predicted_labels"])
-    values = matrix_information["values"]
-
-    if (
-        "Failed" in predicted_labels
-        and all(row[predicted_labels.index("Failed")] == 0 for row in values)
-    ):
-        failed_index = predicted_labels.index("Failed")
-        predicted_labels.pop(failed_index)
-        values = [
-            row[:failed_index] + row[failed_index + 1 :]
-            for row in values
-        ]
-
-    matrix_dataframe = pd.DataFrame(
-        values,
-        index=matrix_information["actual_labels"],
-        columns=predicted_labels,
-    )
-
-    matrix_figure = px.imshow(
-        matrix_dataframe,
-        text_auto="d",
-        aspect="auto",
-        color_continuous_scale="Blues",
-        labels={
-            "x": f"Predicted {class_axis_title.lower()}",
-            "y": f"Actual {class_axis_title.lower()}",
-            "color": "Images",
-        },
-    )
-    matrix_figure.update_xaxes(side="top")
-    _style_figure(matrix_figure, height=470)
-
-    st.plotly_chart(
-        matrix_figure,
-        use_container_width=True,
-        config=PLOT_CONFIG,
-    )
-
-    st.caption(
-        "Diagonal cells are correct predictions. Off-diagonal cells show "
-        f"which {class_axis_title.lower()} values were confused with one "
-        "another."
-    )
-
-st.subheader("Average processing time")
-
-time_data = overall.dropna(subset=["Average processing time (ms)"]).copy()
-time_data = time_data.sort_values("Average processing time (ms)")
-
-time_figure = px.bar(
-    time_data,
+performance_figure = px.bar(
+    performance_long,
     x="Approach",
-    y="Average processing time (ms)",
-    color="Approach",
-    color_discrete_map=METHOD_COLOURS,
-    category_orders={"Approach": time_data["Approach"].tolist()},
+    y="Score",
+    color="Metric",
+    barmode="group",
+    color_discrete_map=METRIC_COLOURS,
+    category_orders={"Approach": [METHODS[key] for key in evaluated_keys], "Metric": ["Overall accuracy", "Macro F1"]},
 )
-time_figure.update_traces(
-    texttemplate="%{y:.0f} ms",
-    textposition="outside",
-    cliponaxis=False,
+performance_figure.update_traces(texttemplate="%{y:.1%}", textposition="outside", cliponaxis=False)
+performance_figure.update_yaxes(title="Score", range=[0, 1.08], tickformat=".0%")
+performance_figure.update_xaxes(title=None)
+st.plotly_chart(_style_figure(performance_figure), width="stretch", config=PLOT_CONFIG)
+
+method_order = [METHODS[key] for key in evaluated_keys]
+f1_matrix = per_class.pivot(index="Approach", columns="Category", values="F1").reindex(index=method_order, columns=list(categories))
+f1_figure = px.imshow(
+    f1_matrix,
+    zmin=0,
+    zmax=1,
+    text_auto=".3f",
+    aspect="auto",
+    color_continuous_scale="YlGn",
+    labels={"x": class_axis_title, "y": "Approach", "color": "F1"},
 )
-time_figure.update_layout(showlegend=False)
-time_figure.update_xaxes(title=None)
-time_figure.update_yaxes(title="Average processing time (ms)")
-_style_figure(time_figure)
-
-st.plotly_chart(
-    time_figure,
-    use_container_width=True,
-    config=PLOT_CONFIG,
-)
-
-support_text = " · ".join(
-    f"{category}: {report.get('class_counts', {}).get(category, 0)}"
-    for category in categories
-)
-st.caption(f"Evaluated dataset composition — {support_text}")
-
-with st.expander("View exact evaluation tables"):
-    st.markdown("#### Overall metrics")
-    st.dataframe(
-        overall,
-        hide_index=True,
-        use_container_width=True,
-        column_config={
-            "Overall accuracy": st.column_config.NumberColumn(
-                "Overall accuracy", format="%.4f"
-            ),
-            "Macro F1": st.column_config.NumberColumn(
-                "Macro F1", format="%.4f"
-            ),
-            "Average processing time (ms)": st.column_config.NumberColumn(
-                "Average processing time (ms)", format="%.2f"
-            ),
-            "Successful images": st.column_config.NumberColumn(
-                "Successful images", format="%d"
-            ),
-            "Failed images": st.column_config.NumberColumn(
-                "Failed images", format="%d"
-            ),
-        },
-    )
-
-    st.markdown("#### Per-class metrics")
-    st.dataframe(
-        per_class,
-        hide_index=True,
-        use_container_width=True,
-        column_config={
-            "Precision": st.column_config.NumberColumn(
-                "Precision", format="%.4f"
-            ),
-            "Recall": st.column_config.NumberColumn(
-                "Recall", format="%.4f"
-            ),
-            "F1": st.column_config.NumberColumn("F1", format="%.4f"),
-            "Support": st.column_config.NumberColumn(
-                "Support", format="%d"
-            ),
-        },
-    )
+f1_figure.update_xaxes(side="top")
+st.plotly_chart(_style_figure(f1_figure, height=max(330, 74 * len(method_order))), width="stretch", config=PLOT_CONFIG)

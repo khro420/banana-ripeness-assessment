@@ -1,0 +1,82 @@
+{
+  "records": 1123,
+  "split": {
+    "calibration": 842,
+    "holdout": 281,
+    "random_state": 2026
+  },
+  "baseline": {
+    "weights": {
+      "Unripe": {
+        "morphology": 0.05,
+        "hsv": 0.45,
+        "kmeans": 0.4,
+        "glcm": 0.1
+      },
+      "Ripe": {
+        "morphology": 0.05,
+        "hsv": 0.5,
+        "kmeans": 0.35,
+        "glcm": 0.1
+      },
+      "Overripe": {
+        "morphology": 0.45,
+        "hsv": 0.4,
+        "kmeans": 0.05,
+        "glcm": 0.1
+      },
+      "Rotten": {
+        "morphology": 0.25,
+        "hsv": 0.4,
+        "kmeans": 0.05,
+        "glcm": 0.3
+      }
+    },
+    "calibration": {
+      "accuracy": 0.815914,
+      "macro_f1": 0.831394
+    },
+    "holdout": {
+      "accuracy": 0.80427,
+      "macro_f1": 0.827176
+    }
+  },
+  "candidate": {
+    "weights": {
+      "Unripe": {
+        "morphology": 0.013528,
+        "hsv": 0.435999,
+        "kmeans": 0.426355,
+        "glcm": 0.124118
+      },
+      "Ripe": {
+        "morphology": 0.11226,
+        "hsv": 0.449124,
+        "kmeans": 0.281384,
+        "glcm": 0.157232
+      },
+      "Overripe": {
+        "morphology": 0.570182,
+        "hsv": 0.346834,
+        "kmeans": 0.015304,
+        "glcm": 0.06768
+      },
+      "Rotten": {
+        "morphology": 0.186907,
+        "hsv": 0.608029,
+        "kmeans": 0.006636,
+        "glcm": 0.198428
+      }
+    },
+    "calibration": {
+      "accuracy": 0.834917,
+      "macro_f1": 0.847139
+    },
+    "holdout": {
+      "accuracy": 0.83274,
+      "macro_f1": 0.848604
+    }
+  },
+  "accepted": true,
+  "acceptance_rule": "Holdout macro F1 improves by at least 0.5 percentage points with no holdout accuracy decrease."
+}
