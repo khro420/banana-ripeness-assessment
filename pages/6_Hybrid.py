@@ -47,6 +47,7 @@ from ui.components import (
     apply_app_styles,
     page_header,
 )
+from ui.multiple_image_mode import render_image_input_mode
 from ui.result_display import (
     render_result_summary,
 )
@@ -79,6 +80,9 @@ st.warning(
     "the final test-set evaluation. Do not tune them using the "
     "test results."
 )
+
+
+render_image_input_mode("hybrid", "hybrid")
 
 
 with st.expander(

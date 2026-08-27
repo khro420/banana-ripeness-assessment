@@ -10,6 +10,7 @@ from core.image_handling import (
     prepare_uploaded_image,
 )
 from ui.components import apply_app_styles, page_header
+from ui.multiple_image_mode import render_image_input_mode
 
 
 # ============================================================
@@ -51,6 +52,9 @@ st.warning(
     "Images with similar surface texture may therefore be "
     "difficult to distinguish between ripeness categories."
 )
+
+
+render_image_input_mode("glcm", "glcm")
 
 
 # ============================================================

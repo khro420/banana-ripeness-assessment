@@ -15,6 +15,7 @@ from core.image_handling import (
     prepare_uploaded_image,
 )
 from ui.components import apply_app_styles, page_header
+from ui.multiple_image_mode import render_image_input_mode
 from ui.result_display import render_result_summary
 
 
@@ -26,6 +27,8 @@ page_header(
     "Morphological Dark-Region Analysis",
     "Classify ripeness, then grade quality only when the result is Ripe.",
 )
+
+render_image_input_mode("morphology", "morphology")
 
 parameters = MorphologyParameters()
 bands = RipenessBands()

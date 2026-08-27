@@ -51,8 +51,7 @@ with st.sidebar:
     st.caption("Classical image-processing prototype")
     st.divider()
     st.caption(
-        "UI prototype mode: image-processing and evaluation logic "
-        "have not been connected yet."
+        "Single-image and multiple-image analysis with automated reporting."
     )
 
 navigation = st.navigation(pages, position="sidebar", expanded=True)

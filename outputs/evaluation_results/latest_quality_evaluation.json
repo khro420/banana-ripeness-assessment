@@ -7,7 +7,7 @@
     "Defect"
   ],
   "status": "Quality evaluation completed for Morphology, HSV and K-means. GLCM Texture and Hybrid are not implemented for quality.",
-  "generated_at": "2026-08-27T00:11:08+08:00",
+  "generated_at": "2026-08-27T01:47:39+08:00",
   "dataset_split": "test",
   "dataset_directory": "dataset/quality/test",
   "image_count": 359,
@@ -26,7 +26,7 @@
       "status": "Completed",
       "overall_accuracy": 0.7325905292479109,
       "macro_f1": 0.7098661177396027,
-      "average_processing_time_ms": 34.11813927678168,
+      "average_processing_time_ms": 18.613477493072878,
       "successful_images": 359,
       "failed_images": 0,
       "per_class": {
@@ -90,7 +90,7 @@
       "status": "Completed",
       "overall_accuracy": 0.6740947075208914,
       "macro_f1": 0.640243266680399,
-      "average_processing_time_ms": 33.20776072848319,
+      "average_processing_time_ms": 19.0549238413596,
       "successful_images": 359,
       "failed_images": 0,
       "per_class": {
@@ -154,7 +154,7 @@
       "status": "Completed",
       "overall_accuracy": 0.6796657381615598,
       "macro_f1": 0.6656974325607193,
-      "average_processing_time_ms": 110.7386195004858,
+      "average_processing_time_ms": 77.95227393320282,
       "successful_images": 359,
       "failed_images": 0,
       "per_class": {

@@ -74,6 +74,47 @@ def _style_figure(figure, height: int = 400):
     return figure
 
 
+def _render_evaluation_report(report: dict, mode_label: str, evaluation_mode: str) -> None:
+    """Expose one report for the complete dashboard evaluation."""
+
+    with st.container(border=True):
+        st.subheader("Automated Evaluation Reporting")
+        st.write(
+            f"Download one PDF that documents the complete **{mode_label.lower()} "
+            "evaluation** and compares every evaluated image-processing approach."
+        )
+
+        try:
+            from core.reporting import build_evaluation_pdf_report
+
+            pdf_bytes = build_evaluation_pdf_report(report)
+        except ModuleNotFoundError as error:
+            if error.name == "reportlab":
+                st.error(
+                    "PDF reporting requires ReportLab. Install the project "
+                    "dependencies with `./.venv/bin/python -m pip install -r "
+                    "requirements.txt`, then restart Streamlit."
+                )
+            else:
+                raise
+        except Exception as error:
+            st.error(f"The evaluation PDF could not be generated: {error}")
+        else:
+            st.download_button(
+                "Download dashboard evaluation report (PDF)",
+                data=pdf_bytes,
+                file_name=f"banana_{evaluation_mode}_evaluation_report.pdf",
+                mime="application/pdf",
+                type="primary",
+                width="stretch",
+                key=f"{evaluation_mode}_evaluation_pdf_report",
+            )
+            st.caption(
+                "The report includes the dataset summary, class distribution, "
+                "approach comparison, automated findings, per-class metrics and "
+                "confusion matrices."
+            )
+
 apply_app_styles()
 st.title("Evaluation dashboard")
 
@@ -130,6 +171,9 @@ if not evaluated_keys:
 
 overall = _overall_dataframe(report, evaluated_keys)
 per_class = _class_dataframe(report, evaluated_keys, categories)
+
+st.divider()
+_render_evaluation_report(report, mode_label, evaluation_mode)
 
 st.divider()
 st.subheader("Approach results")

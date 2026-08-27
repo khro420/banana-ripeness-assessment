@@ -15,6 +15,7 @@ from core.image_handling import (
     prepare_uploaded_image,
 )
 from ui.components import apply_app_styles, page_header
+from ui.multiple_image_mode import render_image_input_mode
 from ui.result_display import render_result_summary
 
 
@@ -42,6 +43,8 @@ st.warning(
     "respective validation splits. The test splits must not be used for "
     "threshold tuning."
 )
+
+render_image_input_mode("hsv", "hsv")
 
 parameters = HSVParameters()
 bands = HSVRipenessBands()

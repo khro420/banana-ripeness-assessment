@@ -9,6 +9,7 @@ from branches.kmeans.kmeans_segmentation import KMeansParameters
 from core.banana_segmentation import segment_banana
 from core.image_handling import prepare_uploaded_image
 from ui.components import apply_app_styles, page_header
+from ui.multiple_image_mode import render_image_input_mode
 from ui.result_display import render_result_summary
 
 
@@ -33,6 +34,8 @@ st.warning(
     "should be calibrated using the validation dataset before final testing."
 )
 
+
+render_image_input_mode("kmeans", "kmeans")
 
 parameters = KMeansParameters(k=4)
 bands = KMeansRipenessBands()
