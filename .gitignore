@@ -71,3 +71,6 @@ outputs/hybrid_tuning/*
 
 # The quality split manifest is intentionally not ignored: it records the
 # 70/30 split after the dataset itself is downloaded separately.
+outputs/evaluation_results/latest_evaluation.json
+outputs/evaluation_results/latest_quality_evaluation.json
+outputs/evaluation_results/latest_ripeness_evaluation.json

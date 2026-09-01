@@ -1,14 +1,11 @@
 from dataclasses import dataclass
-
 import cv2
 import numpy as np
 
 
 @dataclass(frozen=True)
 class HSVParameters:
-    """HSV thresholds used to separate visible banana-peel colours."""
-
-    # OpenCV HSV ranges: H = 0-179, S/V = 0-255.
+    # HSV thresholds
     green_hue_min: int = 35
     green_hue_max: int = 85
     green_saturation_min: int = 35
@@ -25,7 +22,6 @@ class HSVParameters:
     brown_value_min: int = 35
     brown_value_max: int = 180
 
-    # Very dark pixels have unreliable hue, so Value is used directly.
     dark_value_max: int = 70
 
 
@@ -54,94 +50,65 @@ class HSVMaskResult:
     deteriorated_percentage: float
 
 
-def _binary_mask(mask: np.ndarray) -> np.ndarray:
-    return np.where(mask > 0, 255, 0).astype(np.uint8)
-
-
-def _validate_parameters(parameters: HSVParameters) -> None:
-    hue_names = (
-        "green_hue_min",
-        "green_hue_max",
-        "yellow_hue_min",
-        "yellow_hue_max",
-        "brown_hue_min",
-        "brown_hue_max",
+def _validate(p: HSVParameters) -> None:
+    hue_fields = (
+        "green_hue_min", "green_hue_max",
+        "yellow_hue_min", "yellow_hue_max",
+        "brown_hue_min", "brown_hue_max",
     )
-    for name in hue_names:
-        value = getattr(parameters, name)
-        if not 0 <= value <= 179:
+    channel_fields = (
+        "green_saturation_min", "green_value_min",
+        "yellow_saturation_min", "yellow_value_min",
+        "brown_saturation_min", "brown_value_min",
+        "brown_value_max", "dark_value_max",
+    )
+
+    for name in hue_fields:
+        if not 0 <= getattr(p, name) <= 179:
             raise ValueError(f"{name} must be between 0 and 179.")
 
-    channel_names = (
-        "green_saturation_min",
-        "green_value_min",
-        "yellow_saturation_min",
-        "yellow_value_min",
-        "brown_saturation_min",
-        "brown_value_min",
-        "brown_value_max",
-        "dark_value_max",
-    )
-    for name in channel_names:
-        value = getattr(parameters, name)
-        if not 0 <= value <= 255:
+    for name in channel_fields:
+        if not 0 <= getattr(p, name) <= 255:
             raise ValueError(f"{name} must be between 0 and 255.")
 
-    if parameters.green_hue_min > parameters.green_hue_max:
+    if p.green_hue_min > p.green_hue_max:
         raise ValueError("Green minimum hue cannot exceed maximum hue.")
-    if parameters.yellow_hue_min > parameters.yellow_hue_max:
+    if p.yellow_hue_min > p.yellow_hue_max:
         raise ValueError("Yellow minimum hue cannot exceed maximum hue.")
-    if parameters.brown_hue_min > parameters.brown_hue_max:
+    if p.brown_hue_min > p.brown_hue_max:
         raise ValueError("Brown minimum hue cannot exceed maximum hue.")
-    if parameters.brown_value_min > parameters.brown_value_max:
+    if p.brown_value_min > p.brown_value_max:
         raise ValueError("Brown minimum value cannot exceed maximum value.")
 
 
-def _percentage(area_pixels: int, banana_area_pixels: int) -> float:
-    if banana_area_pixels <= 0:
-        return 0.0
-    return 100.0 * area_pixels / banana_area_pixels
+def _mask(condition: np.ndarray) -> np.ndarray:
+    return np.where(condition, 255, 0).astype(np.uint8)
 
 
-def _dim_background(
-    rgb_image: np.ndarray,
-    banana_mask: np.ndarray,
-) -> np.ndarray:
-    overlay = rgb_image.copy()
+def _percentage(mask: np.ndarray, banana_area: int) -> float:
+    return 100.0 * np.count_nonzero(mask) / banana_area
+
+
+def _overlay(rgb, banana_mask, green, yellow, brown, dark):
+    output = rgb.copy()
     background = banana_mask == 0
-    overlay[background] = (
-        overlay[background].astype(np.float32) * 0.30
-    ).astype(np.uint8)
-    return overlay
-
-
-def _create_colour_overlay(
-    rgb_image: np.ndarray,
-    banana_mask: np.ndarray,
-    green_mask: np.ndarray,
-    yellow_mask: np.ndarray,
-    brown_mask: np.ndarray,
-    dark_mask: np.ndarray,
-) -> np.ndarray:
-    overlay = _dim_background(rgb_image, banana_mask)
+    output[background] = (output[background].astype(np.float32) * 0.30).astype(np.uint8)
 
     regions = (
-        (green_mask, np.array([0, 255, 0], dtype=np.float32)),
-        (yellow_mask, np.array([255, 220, 0], dtype=np.float32)),
-        (brown_mask, np.array([165, 85, 25], dtype=np.float32)),
-        (dark_mask, np.array([255, 0, 0], dtype=np.float32)),
+        (green, np.array([0, 255, 0], dtype=np.float32)),
+        (yellow, np.array([255, 220, 0], dtype=np.float32)),
+        (brown, np.array([165, 85, 25], dtype=np.float32)),
+        (dark, np.array([255, 0, 0], dtype=np.float32)),
     )
 
     for mask, colour in regions:
         pixels = mask > 0
-        if not np.any(pixels):
-            continue
-        overlay[pixels] = (
-            0.45 * rgb_image[pixels].astype(np.float32)
-            + 0.55 * colour
-        ).astype(np.uint8)
+        if np.any(pixels):
+            output[pixels] = (
+                0.45 * rgb[pixels].astype(np.float32) + 0.55 * colour
+            ).astype(np.uint8)
 
-    return overlay
+    return output
 
 
 def segment_hsv_colours(
@@ -149,114 +116,97 @@ def segment_hsv_colours(
     banana_mask: np.ndarray,
     parameters: HSVParameters | None = None,
 ) -> HSVMaskResult:
-    """Separate the segmented banana into green/yellow/brown/dark regions."""
-
-    parameters = parameters or HSVParameters()
-    _validate_parameters(parameters)
+    p = parameters or HSVParameters()
+    _validate(p)
 
     rgb_image = np.asarray(rgb_image, dtype=np.uint8)
-    banana_mask = _binary_mask(np.asarray(banana_mask))
+    banana_mask = _mask(np.asarray(banana_mask) > 0)
 
     if rgb_image.ndim != 3 or rgb_image.shape[2] != 3:
         raise ValueError("rgb_image must have shape (height, width, 3).")
     if banana_mask.shape != rgb_image.shape[:2]:
         raise ValueError("The banana mask and image dimensions do not match.")
 
-    banana_area_pixels = int(np.count_nonzero(banana_mask))
-    if banana_area_pixels < 100:
+    banana_area = int(np.count_nonzero(banana_mask))
+    if banana_area < 100:
         raise ValueError("The banana region is too small for HSV analysis.")
 
-    hsv_image = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2HSV)
-    hue = hsv_image[:, :, 0]
-    saturation = hsv_image[:, :, 1]
-    value = hsv_image[:, :, 2]
-    inside_banana = banana_mask > 0
+    # RGB to HSV
+    hsv = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2HSV)
+    hue, saturation, value = cv2.split(hsv)
+    inside = banana_mask > 0
 
-    # Dark first because hue is unreliable when brightness is very low.
-    dark_pixels = (
-        (value <= parameters.dark_value_max)
-        & inside_banana
+    # Colour segmentation
+    dark = (value <= p.dark_value_max) & inside
+
+    green = (
+        (hue >= p.green_hue_min)
+        & (hue <= p.green_hue_max)
+        & (saturation >= p.green_saturation_min)
+        & (value >= p.green_value_min)
+        & inside
+        & ~dark
     )
 
-    green_pixels = (
-        (hue >= parameters.green_hue_min)
-        & (hue <= parameters.green_hue_max)
-        & (saturation >= parameters.green_saturation_min)
-        & (value >= parameters.green_value_min)
-        & inside_banana
-        & ~dark_pixels
+    yellow = (
+        (hue >= p.yellow_hue_min)
+        & (hue <= p.yellow_hue_max)
+        & (saturation >= p.yellow_saturation_min)
+        & (value >= p.yellow_value_min)
+        & inside
+        & ~dark
     )
 
-    yellow_pixels = (
-        (hue >= parameters.yellow_hue_min)
-        & (hue <= parameters.yellow_hue_max)
-        & (saturation >= parameters.yellow_saturation_min)
-        & (value >= parameters.yellow_value_min)
-        & inside_banana
-        & ~dark_pixels
+    brown = (
+        (hue >= p.brown_hue_min)
+        & (hue <= p.brown_hue_max)
+        & (saturation >= p.brown_saturation_min)
+        & (value >= p.brown_value_min)
+        & (value <= p.brown_value_max)
+        & inside
+        & ~dark
     )
 
-    brown_pixels = (
-        (hue >= parameters.brown_hue_min)
-        & (hue <= parameters.brown_hue_max)
-        & (saturation >= parameters.brown_saturation_min)
-        & (value >= parameters.brown_value_min)
-        & (value <= parameters.brown_value_max)
-        & inside_banana
-        & ~dark_pixels
-    )
+    other = inside & ~(green | yellow | brown | dark)
 
-    classified_pixels = (
-        green_pixels | yellow_pixels | brown_pixels | dark_pixels
-    )
-    other_pixels = inside_banana & ~classified_pixels
+    green_mask = _mask(green)
+    yellow_mask = _mask(yellow)
+    brown_mask = _mask(brown)
+    dark_mask = _mask(dark)
+    other_mask = _mask(other)
 
-    green_mask = np.where(green_pixels, 255, 0).astype(np.uint8)
-    yellow_mask = np.where(yellow_pixels, 255, 0).astype(np.uint8)
-    brown_mask = np.where(brown_pixels, 255, 0).astype(np.uint8)
-    dark_mask = np.where(dark_pixels, 255, 0).astype(np.uint8)
-    other_mask = np.where(other_pixels, 255, 0).astype(np.uint8)
+    green_area = int(np.count_nonzero(green_mask))
+    yellow_area = int(np.count_nonzero(yellow_mask))
+    brown_area = int(np.count_nonzero(brown_mask))
+    dark_area = int(np.count_nonzero(dark_mask))
+    other_area = int(np.count_nonzero(other_mask))
 
-    green_area_pixels = int(np.count_nonzero(green_mask))
-    yellow_area_pixels = int(np.count_nonzero(yellow_mask))
-    brown_area_pixels = int(np.count_nonzero(brown_mask))
-    dark_area_pixels = int(np.count_nonzero(dark_mask))
-    other_area_pixels = int(np.count_nonzero(other_mask))
-
-    green_percentage = _percentage(green_area_pixels, banana_area_pixels)
-    yellow_percentage = _percentage(yellow_area_pixels, banana_area_pixels)
-    brown_percentage = _percentage(brown_area_pixels, banana_area_pixels)
-    dark_percentage = _percentage(dark_area_pixels, banana_area_pixels)
-    other_percentage = _percentage(other_area_pixels, banana_area_pixels)
-    deteriorated_percentage = brown_percentage + dark_percentage
-
-    colour_overlay_rgb = _create_colour_overlay(
-        rgb_image=rgb_image,
-        banana_mask=banana_mask,
-        green_mask=green_mask,
-        yellow_mask=yellow_mask,
-        brown_mask=brown_mask,
-        dark_mask=dark_mask,
-    )
+    green_pct = _percentage(green_mask, banana_area)
+    yellow_pct = _percentage(yellow_mask, banana_area)
+    brown_pct = _percentage(brown_mask, banana_area)
+    dark_pct = _percentage(dark_mask, banana_area)
+    other_pct = _percentage(other_mask, banana_area)
 
     return HSVMaskResult(
-        hsv_image=hsv_image,
+        hsv_image=hsv,
         green_mask=green_mask,
         yellow_mask=yellow_mask,
         brown_mask=brown_mask,
         dark_mask=dark_mask,
         other_mask=other_mask,
-        colour_overlay_rgb=colour_overlay_rgb,
-        banana_area_pixels=banana_area_pixels,
-        green_area_pixels=green_area_pixels,
-        yellow_area_pixels=yellow_area_pixels,
-        brown_area_pixels=brown_area_pixels,
-        dark_area_pixels=dark_area_pixels,
-        other_area_pixels=other_area_pixels,
-        green_percentage=green_percentage,
-        yellow_percentage=yellow_percentage,
-        brown_percentage=brown_percentage,
-        dark_percentage=dark_percentage,
-        other_percentage=other_percentage,
-        deteriorated_percentage=deteriorated_percentage,
+        colour_overlay_rgb=_overlay(
+            rgb_image, banana_mask, green_mask, yellow_mask, brown_mask, dark_mask
+        ),
+        banana_area_pixels=banana_area,
+        green_area_pixels=green_area,
+        yellow_area_pixels=yellow_area,
+        brown_area_pixels=brown_area,
+        dark_area_pixels=dark_area,
+        other_area_pixels=other_area,
+        green_percentage=green_pct,
+        yellow_percentage=yellow_pct,
+        brown_percentage=brown_pct,
+        dark_percentage=dark_pct,
+        other_percentage=other_pct,
+        deteriorated_percentage=brown_pct + dark_pct,
     )
