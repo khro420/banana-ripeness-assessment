@@ -17,8 +17,10 @@ from sklearn.metrics import (
 
 from branches.glcm.glcm_analysis import (
     GLCMParameters,
+    GLCMQualityBands,
     GLCMRipenessBands,
     analyse_glcm,
+    analyse_glcm_quality,
 )
 from branches.hsv.hsv_analysis import (
     HSVQualityBands,
@@ -110,7 +112,7 @@ def _categories_for_mode(mode: str) -> tuple[str, ...]:
 
 def _implemented_methods(mode: str) -> set[str]:
     if mode == EVALUATION_MODE_QUALITY:
-        return {"morphology", "hsv", "kmeans"}
+        return {"morphology", "hsv", "kmeans", "glcm"}
     return set(METHODS)
 
 
@@ -554,6 +556,8 @@ def _evaluate_quality_image(
     hsv_quality_bands: HSVQualityBands,
     kmeans_parameters: KMeansParameters,
     kmeans_quality_bands: KMeansQualityBands,
+    glcm_parameters: GLCMParameters | None = None,
+    glcm_quality_bands: GLCMQualityBands | None = None,
 ) -> dict[str, Any]:
     """Evaluate implemented quality methods on one known-ripe image."""
 
@@ -565,6 +569,9 @@ def _evaluate_quality_image(
         return record
 
     prepared, segmentation, shared_time_ms = shared
+
+    glcm_parameters = glcm_parameters or GLCMParameters()
+    glcm_quality_bands = glcm_quality_bands or GLCMQualityBands()
 
     jobs = {
         "morphology": lambda: analyse_morphology_quality(
@@ -584,6 +591,12 @@ def _evaluate_quality_image(
             banana_mask=segmentation.final_mask,
             parameters=kmeans_parameters,
             quality_bands=kmeans_quality_bands,
+        ),
+        "glcm": lambda: analyse_glcm_quality(
+            rgb_image=prepared.working_rgb,
+            banana_mask=segmentation.final_mask,
+            parameters=glcm_parameters,
+            quality_bands=glcm_quality_bands,
         ),
     }
 
@@ -762,6 +775,8 @@ def run_fixed_dataset_evaluation(
         hsv_quality_bands = HSVQualityBands()
         kmeans_parameters = KMeansParameters()
         kmeans_quality_bands = KMeansQualityBands()
+        glcm_parameters = GLCMParameters()
+        glcm_quality_bands = GLCMQualityBands()
 
         for index, item in enumerate(images, start=1):
             records.append(
@@ -774,6 +789,8 @@ def run_fixed_dataset_evaluation(
                     hsv_quality_bands=hsv_quality_bands,
                     kmeans_parameters=kmeans_parameters,
                     kmeans_quality_bands=kmeans_quality_bands,
+                    glcm_parameters=glcm_parameters,
+                    glcm_quality_bands=glcm_quality_bands,
                 )
             )
 
@@ -793,11 +810,13 @@ def run_fixed_dataset_evaluation(
             "hsv_quality_bands": asdict(hsv_quality_bands),
             "kmeans_parameters": asdict(kmeans_parameters),
             "kmeans_quality_bands": asdict(kmeans_quality_bands),
+            "glcm_parameters": asdict(glcm_parameters),
+            "glcm_quality_bands": asdict(glcm_quality_bands),
         }
 
         status = (
-            "Quality evaluation completed for Morphology, HSV and K-means. "
-            "GLCM Texture and Hybrid are not implemented for quality."
+            "Quality evaluation completed for Morphology, HSV, K-means "
+            "and GLCM Texture."
         )
 
     method_metrics = {
