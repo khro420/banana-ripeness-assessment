@@ -44,7 +44,12 @@ from branches.morphology.morphology_analysis import (
 )
 from branches.morphology.morphology_segmentation import MorphologyParameters
 from core.banana_segmentation import segment_banana
-from core.hybrid import CLASS_RELIABILITY_WEIGHTS, combine_method_results
+from core.hybrid import (
+    CLASS_RELIABILITY_WEIGHTS,
+    QUALITY_CLASS_RELIABILITY_WEIGHTS,
+    combine_method_results,
+    combine_quality_method_results,
+)
 from core.image_handling import standardise_image
 from core.result_schema import (
     CATEGORIES,
@@ -112,7 +117,7 @@ def _categories_for_mode(mode: str) -> tuple[str, ...]:
 
 def _implemented_methods(mode: str) -> set[str]:
     if mode == EVALUATION_MODE_QUALITY:
-        return {"morphology", "hsv", "kmeans", "glcm"}
+        return {"morphology", "hsv", "kmeans", "glcm", "hybrid"}
     return set(METHODS)
 
 
@@ -600,10 +605,12 @@ def _evaluate_quality_image(
         ),
     }
 
+    analyses: dict[str, Any] = {}
     for key, job in jobs.items():
         branch_start = perf_counter()
         try:
             analysis = job()
+            analyses[key] = analysis
             _store_result(
                 record,
                 key,
@@ -617,6 +624,27 @@ def _evaluate_quality_image(
             record[f"{key}_total_processing_time_ms"] = (
                 shared_time_ms + failed_branch_ms
             )
+
+    successful_branch_ms = sum(
+        float(analysis.processing_time_ms)
+        for analysis in analyses.values()
+    )
+    try:
+        hybrid = combine_quality_method_results(
+            [analysis.method_result for analysis in analyses.values()]
+        )
+        _store_result(
+            record,
+            "hybrid",
+            hybrid,
+            actual_quality,
+            shared_time_ms,
+        )
+    except Exception as error:
+        record["hybrid_error"] = str(error)
+        record["hybrid_total_processing_time_ms"] = (
+            shared_time_ms + successful_branch_ms
+        )
 
     return record
 
@@ -812,11 +840,14 @@ def run_fixed_dataset_evaluation(
             "kmeans_quality_bands": asdict(kmeans_quality_bands),
             "glcm_parameters": asdict(glcm_parameters),
             "glcm_quality_bands": asdict(glcm_quality_bands),
+            "hybrid_quality_class_reliability_weights": (
+                QUALITY_CLASS_RELIABILITY_WEIGHTS
+            ),
         }
 
         status = (
             "Quality evaluation completed for Morphology, HSV, K-means "
-            "and GLCM Texture."
+            "GLCM Texture and Hybrid."
         )
 
     method_metrics = {

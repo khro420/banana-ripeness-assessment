@@ -5,27 +5,35 @@ import streamlit as st
 
 from branches.glcm.glcm_analysis import (
     GLCMParameters,
+    GLCMQualityBands,
     GLCMRipenessBands,
     analyse_glcm,
+    analyse_glcm_quality,
     prepare_quantised_for_display,
 )
 from branches.hsv.hsv_analysis import (
+    HSVQualityBands,
     HSVRipenessBands,
     analyse_hsv,
+    analyse_hsv_quality,
 )
 from branches.hsv.hsv_segmentation import (
     HSVParameters,
 )
 from branches.kmeans.kmeans_analysis import (
+    KMeansQualityBands,
     KMeansRipenessBands,
     analyse_kmeans,
+    analyse_kmeans_quality,
 )
 from branches.kmeans.kmeans_segmentation import (
     KMeansParameters,
 )
 from branches.morphology.morphology_analysis import (
+    QualityBands,
     RipenessBands,
     analyse_morphology,
+    analyse_morphology_quality,
 )
 from branches.morphology.morphology_segmentation import (
     MorphologyParameters,
@@ -36,6 +44,9 @@ from core.hybrid import (
     CLASS_RELIABILITY_WEIGHTS,
     METHOD_NAMES,
     METHOD_ORDER,
+    QUALITY_CLASS_RELIABILITY_WEIGHTS,
+    QUALITY_HYBRID_CATEGORIES,
+    combine_quality_method_results,
     combine_method_results,
 )
 from core.image_handling import (
@@ -53,7 +64,7 @@ from ui.result_display import (
 )
 
 
-HYBRID_RESULT_VERSION = 1
+HYBRID_RESULT_VERSION = 2
 
 
 apply_app_styles()
@@ -163,6 +174,44 @@ fingerprint = image_fingerprint(
     uploaded_file
 )
 
+live_evidence = st.empty()
+
+
+def _render_live_evidence(segmentation, analyses) -> None:
+    """Refresh visible evidence as each hybrid branch completes."""
+    with live_evidence.container():
+        st.caption("Live processing evidence")
+        columns = st.columns(3)
+        with columns[0]:
+            st.image(
+                segmentation.overlay_rgb,
+                caption="Shared banana segmentation",
+                width="stretch",
+            )
+
+        morphology = analyses.get("morphology")
+        with columns[1]:
+            if morphology is not None:
+                st.image(
+                    morphology.masks.raw_blemish_mask,
+                    caption="Morphology candidate mask",
+                    clamp=True,
+                    width="stretch",
+                )
+            else:
+                st.caption("Waiting for morphology mask…")
+
+        with columns[2]:
+            if morphology is not None:
+                st.image(
+                    morphology.masks.blemish_mask,
+                    caption="Morphology cleaned mask",
+                    clamp=True,
+                    width="stretch",
+                )
+            else:
+                st.caption("Waiting for cleaned mask…")
+
 
 if st.button(
     "Run hybrid assessment",
@@ -173,96 +222,133 @@ if st.button(
     analyses = {}
     errors = {}
     hybrid = None
+    quality_analyses = {}
+    quality_errors = {}
+    quality_hybrid = None
 
     segmentation_time_ms = 0.0
 
     try:
-        segmentation_start = perf_counter()
+        with st.status("Running hybrid assessment", expanded=True) as status:
+            segmentation_start = perf_counter()
 
-        segmentation = segment_banana(
-            rgb_image=(
-                prepared_image.working_rgb
-            ),
-            content_mask=(
-                prepared_image.content_mask
-            ),
-        )
-
-        segmentation_time_ms = (
-            perf_counter()
-            - segmentation_start
-        ) * 1000.0
-
-        if not segmentation.success:
-            errors["segmentation"] = (
-                segmentation.message
-            )
-
-        else:
-            method_jobs = (
-                (
-                    "morphology",
-                    analyse_morphology,
-                    MorphologyParameters(),
-                    RipenessBands(),
+            segmentation = segment_banana(
+                rgb_image=(
+                    prepared_image.working_rgb
                 ),
-                (
-                    "hsv",
-                    analyse_hsv,
-                    HSVParameters(),
-                    HSVRipenessBands(),
-                ),
-                (
-                    "kmeans",
-                    analyse_kmeans,
-                    KMeansParameters(k=4),
-                    KMeansRipenessBands(),
-                ),
-                (
-                    "glcm",
-                    analyse_glcm,
-                    GLCMParameters(),
-                    GLCMRipenessBands(),
+                content_mask=(
+                    prepared_image.content_mask
                 ),
             )
 
-            for (
-                method_key,
-                analyser,
-                parameters,
-                bands,
-            ) in method_jobs:
-                try:
-                    analyses[method_key] = analyser(
-                        rgb_image=(
-                            prepared_image.working_rgb
-                        ),
-                        banana_mask=(
-                            segmentation.final_mask
-                        ),
-                        parameters=parameters,
-                        bands=bands,
-                    )
+            segmentation_time_ms = (
+                perf_counter()
+                - segmentation_start
+            ) * 1000.0
 
-                except Exception as error:
-                    # One failed branch should not crash
-                    # the remaining hybrid pipeline.
-                    errors[method_key] = str(error)
-
-            try:
-                hybrid = combine_method_results(
-                    [
-                        analysis.method_result
-                        for analysis
-                        in analyses.values()
-                    ]
+            if not segmentation.success:
+                errors["segmentation"] = (
+                    segmentation.message
                 )
 
-            except (
-                TypeError,
-                ValueError,
-            ) as error:
-                errors["hybrid"] = str(error)
+            else:
+                status.write("Shared banana mask ready.")
+                _render_live_evidence(segmentation, analyses)
+                method_jobs = (
+                    (
+                        "morphology",
+                        analyse_morphology,
+                        MorphologyParameters(),
+                        RipenessBands(),
+                    ),
+                    (
+                        "hsv",
+                        analyse_hsv,
+                        HSVParameters(),
+                        HSVRipenessBands(),
+                    ),
+                    (
+                        "kmeans",
+                        analyse_kmeans,
+                        KMeansParameters(k=4),
+                        KMeansRipenessBands(),
+                    ),
+                    (
+                        "glcm",
+                        analyse_glcm,
+                        GLCMParameters(),
+                        GLCMRipenessBands(),
+                    ),
+                )
+
+                for (
+                    method_key,
+                    analyser,
+                    parameters,
+                    bands,
+                ) in method_jobs:
+                    try:
+                        status.write(f"Running {METHOD_NAMES[method_key]}…")
+                        analyses[method_key] = analyser(
+                            rgb_image=(
+                                prepared_image.working_rgb
+                            ),
+                            banana_mask=(
+                                segmentation.final_mask
+                            ),
+                            parameters=parameters,
+                            bands=bands,
+                        )
+                        _render_live_evidence(segmentation, analyses)
+
+                    except Exception as error:
+                        # One failed branch should not crash
+                        # the remaining hybrid pipeline.
+                        errors[method_key] = str(error)
+
+                try:
+                    hybrid = combine_method_results(
+                        [
+                            analysis.method_result
+                            for analysis
+                            in analyses.values()
+                        ]
+                    )
+                    status.write("Ripeness fusion complete.")
+
+                except (
+                    TypeError,
+                    ValueError,
+                ) as error:
+                    errors["hybrid"] = str(error)
+
+                if hybrid is not None and hybrid.predicted_category == "Ripe":
+                    status.write("Ripe result confirmed. Running all four quality approaches…")
+                    quality_jobs = (
+                        ("morphology", analyse_morphology_quality, MorphologyParameters(), QualityBands()),
+                        ("hsv", analyse_hsv_quality, HSVParameters(), HSVQualityBands()),
+                        ("kmeans", analyse_kmeans_quality, KMeansParameters(k=4), KMeansQualityBands()),
+                        ("glcm", analyse_glcm_quality, GLCMParameters(), GLCMQualityBands()),
+                    )
+                    for method_key, analyser, parameters, bands in quality_jobs:
+                        try:
+                            status.write(f"Running quality {METHOD_NAMES[method_key]}…")
+                            quality_analyses[method_key] = analyser(
+                                rgb_image=prepared_image.working_rgb,
+                                banana_mask=segmentation.final_mask,
+                                parameters=parameters,
+                                quality_bands=bands,
+                            )
+                        except Exception as error:
+                            quality_errors[method_key] = str(error)
+                    try:
+                        quality_hybrid = combine_quality_method_results(
+                            [analysis.method_result for analysis in quality_analyses.values()]
+                        )
+                        status.write("Quality fusion complete.")
+                    except (TypeError, ValueError) as error:
+                        quality_errors["hybrid"] = str(error)
+                status.update(label="Hybrid assessment complete", state="complete")
 
     except Exception as error:
         errors["segmentation"] = str(error)
@@ -281,6 +367,9 @@ if st.button(
         "analyses": analyses,
         "hybrid": hybrid,
         "errors": errors,
+        "quality_analyses": quality_analyses,
+        "quality_hybrid": quality_hybrid,
+        "quality_errors": quality_errors,
     }
 
 
@@ -306,6 +395,9 @@ segmentation = saved["segmentation"]
 analyses = saved["analyses"]
 hybrid = saved["hybrid"]
 errors = saved["errors"]
+quality_analyses = saved.get("quality_analyses", {})
+quality_hybrid = saved.get("quality_hybrid")
+quality_errors = saved.get("quality_errors", {})
 
 
 if (
@@ -433,6 +525,100 @@ if morphology_result is not None:
         "Surface-quality grade",
         morphology_result.surface_grade,
     )
+
+
+st.subheader("Conditional quality hybrid")
+if hybrid.predicted_category != "Ripe":
+    st.info(
+        "Quality fusion is not run because the ripeness hybrid did not "
+        "confirm this banana as Ripe."
+    )
+elif quality_hybrid is None:
+    st.error(
+        quality_errors.get(
+            "hybrid",
+            "The quality hybrid could not produce a result.",
+        )
+    )
+else:
+    st.caption(
+        "All four ripe-banana quality approaches are fused with "
+        "class-specific reliability weights."
+    )
+    render_result_summary(quality_hybrid.method_result)
+    quality_metrics = st.columns(3)
+    quality_metrics[0].metric("Quality class", quality_hybrid.predicted_category)
+    quality_metrics[1].metric(
+        "Quality hybrid confidence",
+        f"{quality_hybrid.confidence_percent:.2f}%",
+    )
+    quality_metrics[2].metric(
+        "Quality-method agreement",
+        f"{quality_hybrid.agreement_count}/{quality_hybrid.methods_used}",
+    )
+    st.info(quality_hybrid.decision_reason)
+
+    quality_rows = []
+    for method_key in METHOD_ORDER:
+        method_result = quality_hybrid.method_results.get(method_key)
+        if method_result is None:
+            quality_rows.append(
+                {
+                    "Approach": METHOD_NAMES[method_key],
+                    "Prediction": "Failed",
+                    "Rule support (%)": None,
+                    "Quality weight (%)": None,
+                }
+            )
+            continue
+        quality_rows.append(
+            {
+                "Approach": METHOD_NAMES[method_key],
+                "Prediction": method_result.predicted_category,
+                "Rule support (%)": method_result.confidence_percent,
+                "Quality weight (%)": (
+                    quality_hybrid.effective_weights[
+                        quality_hybrid.predicted_category
+                    ][method_key]
+                    * 100.0
+                ),
+            }
+        )
+    st.dataframe(
+        pd.DataFrame(quality_rows),
+        hide_index=True,
+        width="stretch",
+        column_config={
+            "Rule support (%)": st.column_config.NumberColumn(format="%.2f"),
+            "Quality weight (%)": st.column_config.NumberColumn(format="%.2f"),
+        },
+    )
+
+    with st.expander("View quality-hybrid reliability weights"):
+        quality_weight_rows = [
+            {
+                "Quality class": category,
+                **{
+                    METHOD_NAMES[method_key]: (
+                        QUALITY_CLASS_RELIABILITY_WEIGHTS[category][method_key]
+                        * 100.0
+                    )
+                    for method_key in METHOD_ORDER
+                },
+            }
+            for category in QUALITY_HYBRID_CATEGORIES
+        ]
+        st.dataframe(
+            pd.DataFrame(quality_weight_rows),
+            hide_index=True,
+            width="stretch",
+            column_config={
+                METHOD_NAMES[method_key]: st.column_config.NumberColumn(
+                    format="%.1f%%"
+                )
+                for method_key in METHOD_ORDER
+            },
+        )
 
 
 (
@@ -599,8 +785,21 @@ with evidence_tab:
 
         if morphology is not None:
             st.image(
+                morphology.masks.raw_blemish_mask,
+                caption="Combined candidate mask",
+                clamp=True,
+                width="stretch",
+            )
+            st.image(
+                morphology.masks.blemish_mask,
+                caption="Cleaned blemish mask",
+                clamp=True,
+                width="stretch",
+            )
+            st.image(
                 morphology.masks.blemish_overlay_rgb,
-                use_container_width=True,
+                caption="Dark-region overlay",
+                width="stretch",
             )
         else:
             st.info(

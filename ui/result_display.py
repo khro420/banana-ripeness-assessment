@@ -1,7 +1,7 @@
 import pandas as pd
 import streamlit as st
 
-from core.result_schema import CATEGORIES, MethodResult
+from core.result_schema import MethodResult
 from ui.components import render_placeholder_box
 
 
@@ -43,7 +43,7 @@ def render_result_summary(result: MethodResult) -> None:
             "Category": category,
             "Decision score": result.class_scores.get(category),
         }
-        for category in CATEGORIES
+        for category in result.class_scores
     ]
 
     st.markdown("#### Class decision scores")

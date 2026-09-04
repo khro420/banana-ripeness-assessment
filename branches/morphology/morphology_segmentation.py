@@ -22,8 +22,14 @@ class MorphologyParameters:
 
 @dataclass
 class MorphologyMaskResult:
-    # Keep only images and measurements used by the analysis or page.
+    # Preserve each mask stage so the app can explain the final decision.
     greyscale_image: np.ndarray
+    blackhat_image: np.ndarray
+    local_dark_mask: np.ndarray
+    absolute_dark_mask: np.ndarray
+    raw_blemish_mask: np.ndarray
+    opened_blemish_mask: np.ndarray
+    closed_blemish_mask: np.ndarray
     blemish_mask: np.ndarray
     blemish_overlay_rgb: np.ndarray
     banana_area_pixels: int
@@ -136,15 +142,21 @@ def detect_blemishes(
     # Opening removes specks; closing joins nearby dark pixels.
     opening = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (parameters.opening_kernel_size,) * 2)
     closing = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (parameters.closing_kernel_size,) * 2)
-    cleaned = cv2.morphologyEx(raw_mask, cv2.MORPH_OPEN, opening)
-    cleaned = cv2.morphologyEx(cleaned, cv2.MORPH_CLOSE, closing)
-    cleaned = _remove_small_components(cleaned, max(5, round(banana_area * parameters.minimum_component_area_ratio)))
+    opened = cv2.morphologyEx(raw_mask, cv2.MORPH_OPEN, opening)
+    closed = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, closing)
+    cleaned = _remove_small_components(closed, max(5, round(banana_area * parameters.minimum_component_area_ratio)))
     cleaned = cv2.bitwise_and(cleaned, banana_mask)
 
     dark_area = int(np.count_nonzero(cleaned))
     greyscale[banana_mask == 0] = 0
     return MorphologyMaskResult(
         greyscale_image=greyscale,
+        blackhat_image=blackhat,
+        local_dark_mask=_binary_mask(local_dark),
+        absolute_dark_mask=_binary_mask(absolute_dark),
+        raw_blemish_mask=raw_mask,
+        opened_blemish_mask=opened,
+        closed_blemish_mask=closed,
         blemish_mask=cleaned,
         blemish_overlay_rgb=_dark_overlay(rgb_image, banana_mask, cleaned),
         banana_area_pixels=banana_area,

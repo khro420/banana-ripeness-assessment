@@ -63,6 +63,25 @@ def _class_dataframe(report: dict, method_keys: list[str], categories: tuple[str
     return pd.DataFrame(rows)
 
 
+def _processing_time_dataframe(
+    report: dict,
+    method_keys: list[str],
+) -> pd.DataFrame:
+    """Return the reported average end-to-end time for each approach."""
+    return pd.DataFrame(
+        {
+            "Approach": METHODS[key],
+            "Average processing time (ms)": report["methods"][key].get(
+                "average_processing_time_ms"
+            ),
+        }
+        for key in method_keys
+        if _is_number(
+            report["methods"][key].get("average_processing_time_ms")
+        )
+    )
+
+
 def _style_figure(figure, height: int = 400):
     figure.update_layout(
         template="plotly_white",
@@ -171,6 +190,7 @@ if not evaluated_keys:
 
 overall = _overall_dataframe(report, evaluated_keys)
 per_class = _class_dataframe(report, evaluated_keys, categories)
+processing_time = _processing_time_dataframe(report, evaluated_keys)
 
 st.divider()
 _render_evaluation_report(report, mode_label, evaluation_mode)
@@ -235,6 +255,24 @@ performance_figure.update_traces(texttemplate="%{y:.1%}", textposition="outside"
 performance_figure.update_yaxes(title="Score", range=[0, 1.08], tickformat=".0%")
 performance_figure.update_xaxes(title=None)
 st.plotly_chart(_style_figure(performance_figure), width="stretch", config=PLOT_CONFIG)
+
+st.markdown("#### Processing time comparison")
+if processing_time.empty:
+    st.info("Processing-time data is not available for this evaluation yet.")
+else:
+    st.caption(
+        "Average end-to-end time per image, including shared preprocessing "
+        "and banana segmentation."
+    )
+    st.bar_chart(
+        processing_time,
+        x="Approach",
+        y="Average processing time (ms)",
+        horizontal=True,
+        sort="-Average processing time (ms)",
+        color="orange",
+        height=max(260, 58 * len(processing_time)),
+    )
 
 method_order = [METHODS[key] for key in evaluated_keys]
 f1_matrix = per_class.pivot(index="Approach", columns="Category", values="F1").reindex(index=method_order, columns=list(categories))

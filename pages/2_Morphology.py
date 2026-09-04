@@ -19,7 +19,7 @@ from ui.multiple_image_mode import render_image_input_mode
 from ui.result_display import render_result_summary
 
 
-MORPHOLOGY_RESULT_VERSION = 10
+MORPHOLOGY_RESULT_VERSION = 11
 
 
 apply_app_styles()
@@ -71,13 +71,17 @@ if st.button("Run morphology analysis", type="primary", width="stretch"):
     error_message = None
     if segmentation.success:
         try:
-            analysis = analyse_morphology(
-                rgb_image=prepared_image.working_rgb,
-                banana_mask=segmentation.final_mask,
-                parameters=parameters,
-                bands=bands,
-                quality_bands=quality_bands,
-            )
+            with st.status("Building morphology masks", expanded=True) as status:
+                st.write("Banana region segmented. Detecting dark-region candidates.")
+                analysis = analyse_morphology(
+                    rgb_image=prepared_image.working_rgb,
+                    banana_mask=segmentation.final_mask,
+                    parameters=parameters,
+                    bands=bands,
+                    quality_bands=quality_bands,
+                )
+                st.write("Cleaning candidate regions and applying classification rules.")
+                status.update(label="Morphology masks and result ready", state="complete")
         except ValueError as error:
             error_message = str(error)
     else:
@@ -142,17 +146,18 @@ metrics[2].metric("Dark-region spread", f"{analysis.dark_region_spread:.2f}%")
 metrics[3].metric("Dark components", analysis.dark_component_count)
 
 st.subheader("Analysis visualisation")
-# These two images briefly show the main image-processing steps.
-first, second = st.columns(2)
-with first:
-    st.image(
-        segmentation.overlay_rgb,
-        caption="Banana segmentation",
-        width="stretch",
-    )
-with second:
-    st.image(
-        analysis.masks.blemish_overlay_rgb,
-        caption="Detected dark regions",
-        width="stretch",
-    )
+st.caption(
+    "These four visuals show the path from banana region to the final "
+    "dark-region decision."
+)
+visuals = (
+    (segmentation.overlay_rgb, "1. Banana segmentation", False),
+    (analysis.masks.raw_blemish_mask, "2. Dark-region candidates", True),
+    (analysis.masks.blemish_mask, "3. Cleaned blemish mask", True),
+    (analysis.masks.blemish_overlay_rgb, "4. Final dark-region overlay", False),
+)
+for row_start in range(0, len(visuals), 2):
+    columns = st.columns(2)
+    for column, (image, caption, clamp) in zip(columns, visuals[row_start:row_start + 2]):
+        with column:
+            st.image(image, caption=caption, clamp=clamp, width="stretch")

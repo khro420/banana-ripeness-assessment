@@ -113,19 +113,23 @@ def _build_glcm(quantised, mask, levels, distance, angle):
     if dx == 0 and dy == 0:
         dx = distance
 
-    glcm = np.zeros((levels, levels), dtype=np.float64)
-
-    for y in range(h):
-        for x in range(w):
-            nx, ny = x + dx, y + dy
-            if nx < 0 or nx >= w or ny < 0 or ny >= h:
-                continue
-            if mask[y, x] == 0 or mask[ny, nx] == 0:
-                continue
-            curr = int(quantised[y, x])
-            neigh = int(quantised[ny, nx])
-            glcm[curr, neigh] += 1
-            glcm[neigh, curr] += 1   # make symmetric
+    # Slice corresponding source/neighbor pixels and count all pairs at
+    # once. This is mathematically identical to the former pixel loop, but
+    # makes full validation runs practical without changing GLCM values.
+    source_y = slice(max(0, -dy), min(h, h - dy))
+    source_x = slice(max(0, -dx), min(w, w - dx))
+    neighbour_y = slice(max(0, dy), min(h, h + dy))
+    neighbour_x = slice(max(0, dx), min(w, w + dx))
+    source = quantised[source_y, source_x]
+    neighbour = quantised[neighbour_y, neighbour_x]
+    valid = (
+        (mask[source_y, source_x] > 0)
+        & (mask[neighbour_y, neighbour_x] > 0)
+    )
+    pairs = source[valid].astype(np.intp) * levels + neighbour[valid]
+    counts = np.bincount(pairs, minlength=levels * levels)
+    glcm = counts.reshape(levels, levels).astype(np.float64)
+    glcm += glcm.T  # Match the explicitly symmetric updates in the loop.
 
     total = glcm.sum()
     if total > 0:
@@ -438,7 +442,10 @@ def analyse_glcm_quality(rgb_image, banana_mask, parameters=None, quality_bands=
         predicted_category=predicted_quality,
         confidence_percent=quality_confidence,
         processing_time_ms=round(elapsed_ms, 2),
-        class_scores={name: 0.0 for name in ("Class_A", "Class_B", "Defect")},
+        class_scores={
+            name: quality_confidence / 100.0 if name == predicted_quality else 0.0
+            for name in ("Class_A", "Class_B", "Defect")
+        },
         features=features_dict,
         notes=[
             "Quality assessed for known-ripe bananas only.",

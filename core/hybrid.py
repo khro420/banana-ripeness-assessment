@@ -4,10 +4,15 @@ from typing import Mapping, Sequence
 
 import numpy as np
 
-from core.result_schema import MethodResult
+from core.result_schema import (
+    MethodResult,
+    QUALITY_CATEGORIES,
+    RIPENESS_CATEGORIES,
+)
 
 
-CATEGORIES = ("Unripe", "Ripe", "Overripe", "Rotten")
+CATEGORIES = RIPENESS_CATEGORIES
+QUALITY_HYBRID_CATEGORIES = QUALITY_CATEGORIES
 METHOD_NAMES = {"morphology": "Morphology", "hsv": "HSV", "kmeans": "K-means", "glcm": "GLCM Texture"}
 METHOD_ORDER = tuple(METHOD_NAMES)
 TIE_BREAK_METHOD_ORDER = ("hsv", "morphology", "glcm", "kmeans")
@@ -18,6 +23,16 @@ CLASS_RELIABILITY_WEIGHTS = {
     "Ripe": {"morphology": 0.1123, "hsv": 0.4491, "kmeans": 0.2814, "glcm": 0.1572},
     "Overripe": {"morphology": 0.5702, "hsv": 0.3468, "kmeans": 0.0153, "glcm": 0.0677},
     "Rotten": {"morphology": 0.1869, "hsv": 0.6080, "kmeans": 0.0066, "glcm": 0.1984},
+}
+
+# Quality fusion is intentionally separate from ripeness fusion: its inputs are
+# the four rules calibrated for bananas already known to be ripe.
+# These conservative class-specific priors keep the stronger dark-region
+# evidence prominent while still allowing colour and texture to change a vote.
+QUALITY_CLASS_RELIABILITY_WEIGHTS = {
+    "Class_A": {"morphology": 0.35, "hsv": 0.25, "kmeans": 0.25, "glcm": 0.15},
+    "Class_B": {"morphology": 0.35, "hsv": 0.30, "kmeans": 0.20, "glcm": 0.15},
+    "Defect": {"morphology": 0.35, "hsv": 0.25, "kmeans": 0.20, "glcm": 0.20},
 }
 
 
@@ -37,10 +52,14 @@ class HybridAnalysisResult:
     agreement_percent: float
     winning_margin_percent: float
     decision_reason: str
+    categories: tuple[str, ...]
 
 
-def _validate_weights(weights: Mapping[str, Mapping[str, float]]) -> None:
-    for category in CATEGORIES:
+def _validate_weights(
+    weights: Mapping[str, Mapping[str, float]],
+    categories: tuple[str, ...],
+) -> None:
+    for category in categories:
         if category not in weights:
             raise ValueError(f"Hybrid weights are missing category: {category}.")
         values = [weights[category].get(method) for method in METHOD_ORDER]
@@ -52,7 +71,10 @@ def _validate_weights(weights: Mapping[str, Mapping[str, float]]) -> None:
             raise ValueError(f"Hybrid weights for {category} must contain a positive value.")
 
 
-def _usable_results(method_results: Sequence[MethodResult]) -> dict[str, MethodResult]:
+def _usable_results(
+    method_results: Sequence[MethodResult],
+    categories: tuple[str, ...],
+) -> dict[str, MethodResult]:
     usable = {}
     for result in method_results:
         if not isinstance(result, MethodResult):
@@ -63,7 +85,7 @@ def _usable_results(method_results: Sequence[MethodResult]) -> dict[str, MethodR
             raise ValueError(f"Unsupported hybrid method: {result.method_key}.")
         if result.method_key in usable:
             raise ValueError(f"Duplicate hybrid method: {result.method_key}.")
-        if result.predicted_category in CATEGORIES:
+        if result.predicted_category in categories:
             usable[result.method_key] = result
     if len(usable) < 2:
         raise ValueError("Hybrid analysis requires at least two successful approaches.")
@@ -80,11 +102,15 @@ def _support(result: MethodResult, category: str) -> float:
     return 1.0 if confidence is None or not np.isfinite(confidence) else float(np.clip(confidence / 100.0, 0.0, 1.0))
 
 
-def _resolve_tie(categories: list[str], results: Mapping[str, MethodResult]) -> str:
+def _resolve_tie(
+    categories: list[str],
+    results: Mapping[str, MethodResult],
+    category_order: tuple[str, ...],
+) -> str:
     for method in TIE_BREAK_METHOD_ORDER:
         if method in results and results[method].predicted_category in categories:
             return results[method].predicted_category
-    return next(category for category in CATEGORIES if category in categories)
+    return next(category for category in category_order if category in categories)
 
 
 def _surface_features(results: Mapping[str, MethodResult]) -> dict[str, object]:
@@ -98,17 +124,31 @@ def _surface_features(results: Mapping[str, MethodResult]) -> dict[str, object]:
 def combine_method_results(
     method_results: Sequence[MethodResult],
     class_weights: Mapping[str, Mapping[str, float]] | None = None,
+    categories: tuple[str, ...] | None = None,
 ) -> HybridAnalysisResult:
     """Fuse valid branch predictions with class-specific weighted support."""
     start = perf_counter()
-    weights = class_weights or CLASS_RELIABILITY_WEIGHTS
-    _validate_weights(weights)
-    results = _usable_results(method_results)
-    raw_scores = dict.fromkeys(CATEGORIES, 0.0)
-    effective_weights = {category: dict.fromkeys(results, 0.0) for category in CATEGORIES}
-    contributions = {method: dict.fromkeys(CATEGORIES, 0.0) for method in results}
+    if categories is None:
+        categories = (
+            QUALITY_HYBRID_CATEGORIES
+            if class_weights is QUALITY_CLASS_RELIABILITY_WEIGHTS
+            else CATEGORIES
+        )
+    categories = tuple(categories)
+    if categories not in {CATEGORIES, QUALITY_HYBRID_CATEGORIES}:
+        raise ValueError("Hybrid categories must be ripeness or quality categories.")
+    weights = class_weights or (
+        QUALITY_CLASS_RELIABILITY_WEIGHTS
+        if categories == QUALITY_HYBRID_CATEGORIES
+        else CLASS_RELIABILITY_WEIGHTS
+    )
+    _validate_weights(weights, categories)
+    results = _usable_results(method_results, categories)
+    raw_scores = dict.fromkeys(categories, 0.0)
+    effective_weights = {category: dict.fromkeys(results, 0.0) for category in categories}
+    contributions = {method: dict.fromkeys(categories, 0.0) for method in results}
 
-    for category in CATEGORIES:
+    for category in categories:
         available = sum(weights[category][method] for method in results)
         if available <= 0:
             continue
@@ -124,8 +164,8 @@ def combine_method_results(
         raise ValueError("The approaches did not provide usable class-support scores.")
     highest = max(raw_scores.values())
     tied = [category for category, score in raw_scores.items() if np.isclose(score, highest, rtol=0.0, atol=1e-12)]
-    predicted = _resolve_tie(tied, results)
-    class_scores = {category: raw_scores[category] / total for category in CATEGORIES}
+    predicted = _resolve_tie(tied, results, categories)
+    class_scores = {category: raw_scores[category] / total for category in categories}
     ranked = sorted(class_scores.values(), reverse=True)
     winning_score, margin = class_scores[predicted], max(0.0, class_scores[predicted] - ranked[1])
     agreement = sum(result.predicted_category == predicted for result in results.values())
@@ -153,7 +193,7 @@ def combine_method_results(
         class_scores=class_scores,
         features=features,
         notes=[
-            "Each approach is weighted differently for each ripeness category.",
+            "Each approach is weighted differently for each output category.",
             "Weights are re-normalised when an approach fails.",
             "Weights must be selected using validation data and frozen before final testing.",
             "Hybrid confidence is a rule-support score, not a probability.",
@@ -163,6 +203,19 @@ def combine_method_results(
     return HybridAnalysisResult(
         method_result, predicted, confidence, processing_time, dict(results), class_scores, raw_scores,
         effective_weights, contributions, agreement, len(results), agreement_ratio * 100.0, margin * 100.0, reason,
+        categories,
+    )
+
+
+def combine_quality_method_results(
+    method_results: Sequence[MethodResult],
+    class_weights: Mapping[str, Mapping[str, float]] | None = None,
+) -> HybridAnalysisResult:
+    """Fuse the four known-ripe quality assessments."""
+    return combine_method_results(
+        method_results,
+        class_weights=class_weights or QUALITY_CLASS_RELIABILITY_WEIGHTS,
+        categories=QUALITY_HYBRID_CATEGORIES,
     )
 
 
