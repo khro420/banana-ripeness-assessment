@@ -3,7 +3,6 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 
-
 @dataclass(frozen=True)
 class KMeansParameters:
     """Settings for K-means clustering."""
@@ -12,7 +11,6 @@ class KMeansParameters:
     attempts: int = 10
     max_iterations: int = 100
     epsilon: float = 0.2
-
 
 @dataclass
 class KMeansSegmentationResult:
@@ -30,7 +28,6 @@ class KMeansSegmentationResult:
     banana_area_pixels: int
     compactness: float
 
-
 def _binary_mask(
     mask: np.ndarray,
 ) -> np.ndarray:
@@ -41,7 +38,6 @@ def _binary_mask(
         255,
         0,
     ).astype(np.uint8)
-
 
 def segment_kmeans_colours(
     rgb_image: np.ndarray,
@@ -71,7 +67,6 @@ def segment_kmeans_colours(
         np.asarray(banana_mask)
     )
 
-
     # Check image
     if (
         rgb_image.ndim != 3
@@ -82,7 +77,6 @@ def segment_kmeans_colours(
             "(height, width, 3)."
         )
 
-
     if (
         banana_mask.shape
         != rgb_image.shape[:2]
@@ -92,16 +86,11 @@ def segment_kmeans_colours(
             "do not match."
         )
 
-
-    # -------------------------------------------------
     # Convert RGB to LAB
-    # -------------------------------------------------
-
     lab_image = cv2.cvtColor(
         rgb_image,
         cv2.COLOR_RGB2LAB,
     )
-
 
     # Only take banana pixels
     banana_pixels_lab = (
@@ -112,18 +101,13 @@ def segment_kmeans_colours(
         banana_pixels_lab
     )
 
-
     if banana_area_pixels < 100:
         raise ValueError(
             "Banana region is too small "
             "for K-means analysis."
         )
 
-
-    # -------------------------------------------------
     # Prepare K-means
-    # -------------------------------------------------
-
     pixel_data = np.float32(
         banana_pixels_lab
     )
@@ -135,15 +119,10 @@ def segment_kmeans_colours(
         parameters.epsilon,
     )
 
-
     # Same result when evaluation is repeated
     cv2.setRNGSeed(42)
 
-
-    # -------------------------------------------------
     # Run K-means
-    # -------------------------------------------------
-
     compactness, labels, centres_lab = cv2.kmeans(
         pixel_data,
         parameters.k,
@@ -155,7 +134,6 @@ def segment_kmeans_colours(
 
     labels = labels.flatten()
 
-
     centres_lab = np.uint8(
         np.clip(
             centres_lab,
@@ -163,7 +141,6 @@ def segment_kmeans_colours(
             255,
         )
     )
-
 
     # Convert centres back to RGB for display
     centres_rgb = cv2.cvtColor(
@@ -178,11 +155,7 @@ def segment_kmeans_colours(
         3,
     )
 
-
-    # -------------------------------------------------
     # Calculate cluster sizes
-    # -------------------------------------------------
-
     cluster_sizes = np.array(
         [
             np.count_nonzero(
@@ -194,18 +167,13 @@ def segment_kmeans_colours(
         dtype=np.int32,
     )
 
-
     cluster_percentages = (
         cluster_sizes
         / banana_area_pixels
         * 100.0
     )
 
-
-    # -------------------------------------------------
     # Full cluster map
-    # -------------------------------------------------
-
     cluster_map = np.full(
         banana_mask.shape,
         -1,
@@ -216,15 +184,10 @@ def segment_kmeans_colours(
         banana_mask > 0
     ] = labels
 
-
-    # -------------------------------------------------
     # Clustered image
-    # -------------------------------------------------
-
     segmented_image_rgb = (
         rgb_image.copy()
     )
-
 
     segmented_image_rgb[
         banana_mask > 0
@@ -244,7 +207,6 @@ def segment_kmeans_colours(
         ].astype(np.float32)
         * 0.25
     ).astype(np.uint8)
-
 
     return KMeansSegmentationResult(
         segmented_image_rgb=(

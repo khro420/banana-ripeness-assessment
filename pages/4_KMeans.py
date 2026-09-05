@@ -1,3 +1,4 @@
+import numpy as np
 import streamlit as st
 
 from branches.kmeans.kmeans_analysis import (
@@ -12,35 +13,18 @@ from ui.components import apply_app_styles, page_header
 from ui.multiple_image_mode import render_image_input_mode
 from ui.result_display import render_result_summary
 
-
 apply_app_styles()
 
 page_header(
     "K-means Colour Clustering",
-    "Classify banana ripeness using automatically generated colour clusters.",
+    "Classify ripeness, then grade quality only when the result is Ripe.",
 )
-
-
-st.info(
-    "K-means analysis groups similar banana-peel pixels into colour clusters. "
-    "The detected cluster colours are then analysed to determine whether the "
-    "banana is Unripe, Ripe, Overripe or Rotten."
-)
-
-
-st.warning(
-    "Limitation: K-means clustering can be affected by lighting, shadows, "
-    "reflections and the selected number of clusters. The decision thresholds "
-    "should be calibrated using the validation dataset before final testing."
-)
-
 
 render_image_input_mode("kmeans", "kmeans")
 
 parameters = KMeansParameters(k=4)
 bands = KMeansRipenessBands()
 quality_bands = KMeansQualityBands()
-
 
 with st.expander("View K-means decision rules"):
     st.markdown(
@@ -76,7 +60,6 @@ with st.expander("View K-means decision rules"):
         """
     )
 
-
 uploaded_file = st.file_uploader(
     "Upload one banana image",
     type=["jpg", "jpeg", "png"],
@@ -84,11 +67,9 @@ uploaded_file = st.file_uploader(
     key="kmeans_upload",
 )
 
-
 if uploaded_file is None:
     st.info("Upload an image to begin.")
     st.stop()
-
 
 prepared_image = prepare_uploaded_image(
     uploaded_file,
@@ -100,7 +81,6 @@ st.image(
     caption="Uploaded Banana",
     width=420,
 )
-
 
 if st.button(
     "Run K-means analysis",
@@ -126,7 +106,6 @@ if st.button(
         quality_bands=quality_bands,
     )
 
-
     # Final prediction
     render_result_summary(
         analysis.method_result
@@ -135,7 +114,6 @@ if st.button(
     st.info(
         analysis.decision_reason
     )
-
 
     # Metric cards
     col1, col2, col3 = st.columns(3)
@@ -154,7 +132,6 @@ if st.button(
         "K-means time",
         f"{analysis.processing_time_ms:.2f} ms",
     )
-
 
     # Ripe-only quality
     st.markdown("### Conditional quality assessment")
@@ -182,16 +159,15 @@ if st.button(
     else:
         st.info(analysis.quality_reason)
 
-
     # Tabs
-    overview_tab, clusters_tab, decision_tab = st.tabs(
+    overview_tab, mask_tab, clusters_tab, decision_tab = st.tabs(
         [
             "Overview",
+            "K-means masks",
             "K-means clusters",
             "Decision details",
         ]
     )
-
 
     # OVERVIEW
     with overview_tab:
@@ -220,6 +196,59 @@ if st.button(
             "into similar colour clusters using K-means."
         )
 
+    # K-MEANS CLUSTER MASKS
+    with mask_tab:
+
+        st.markdown("#### K-means cluster masks")
+
+        st.caption(
+            "White pixels belong to the selected K-means cluster; "
+            "black pixels belong to other clusters or the background."
+        )
+
+        cluster_map = analysis.segmentation.cluster_map
+        centres = analysis.segmentation.centres_rgb
+        percentages = analysis.segmentation.cluster_percentages
+
+        for row_start in range(0, len(centres), 2):
+            mask_columns = st.columns(2)
+
+            for column_index, cluster_index in enumerate(
+                range(row_start, min(row_start + 2, len(centres)))
+            ):
+                cluster_mask = np.where(
+                    cluster_map == cluster_index,
+                    255,
+                    0,
+                ).astype(np.uint8)
+
+                centre = centres[cluster_index]
+                centre_rgb = tuple(int(value) for value in centre)
+
+                with mask_columns[column_index]:
+                    st.image(
+                        cluster_mask,
+                        caption=(
+                            f"Cluster {cluster_index + 1} mask — "
+                            f"{percentages[cluster_index]:.2f}% of banana pixels; "
+                            f"centre RGB {centre_rgb}"
+                        ),
+                        use_container_width=True,
+                    )
+
+        with st.expander("View shared binary banana mask"):
+            st.image(
+                segmentation.final_mask,
+                caption=(
+                    "White pixels represent the detected banana region; "
+                    "black pixels represent the excluded background."
+                ),
+                use_container_width=True,
+            )
+
+            st.caption(
+                "This shared mask limits K-means clustering to banana pixels."
+            )
 
     # K-MEANS CLUSTERS
     with clusters_tab:
@@ -260,7 +289,6 @@ if st.button(
                 st.caption(
                     f"RGB ({r}, {g}, {b})"
                 )
-
 
     # DECISION DETAILS
     with decision_tab:

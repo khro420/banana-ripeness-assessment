@@ -12,10 +12,8 @@ from branches.kmeans.kmeans_segmentation import (
 )
 from core.result_schema import MethodResult, QUALITY_CATEGORIES
 
-
 CATEGORIES = ("Unripe", "Ripe", "Overripe", "Rotten")
 COLOURS = ("Green", "Yellow", "Brown", "Dark", "Other")
-
 
 @dataclass(frozen=True)
 class KMeansRipenessBands:
@@ -41,12 +39,10 @@ class KMeansRipenessBands:
     ripe_secondary_min_yellow_percent: float = 54.0
     ripe_secondary_max_brown_percent: float = 6.0
 
-
 @dataclass(frozen=True)
 class KMeansQualityBands:
     class_a_max_damage_percent: float = 10.0
     defect_min_damage_percent: float = 25.0
-
 
 @dataclass
 class KMeansAnalysisResult:
@@ -76,7 +72,6 @@ class KMeansQualityResult:
     quality_reason: str
     features: dict[str, Any]
 
-
 def _identify_cluster_colour(rgb_centroid: np.ndarray) -> str:
     """Give one K-means RGB centroid a simple colour label."""
     pixel = np.uint8([[rgb_centroid]])
@@ -92,7 +87,6 @@ def _identify_cluster_colour(rgb_centroid: np.ndarray) -> str:
         return "Green"
     return "Other"
 
-
 def _calculate_colour_scores(segmentation: KMeansSegmentationResult) -> dict[str, float]:
     """Combine cluster percentages by interpreted colour."""
     scores = dict.fromkeys(COLOURS, 0.0)
@@ -102,7 +96,6 @@ def _calculate_colour_scores(segmentation: KMeansSegmentationResult) -> dict[str
     ):
         scores[_identify_cluster_colour(centre)] += float(percentage) / 100.0
     return scores
-
 
 def _validate_ripeness_bands(bands: KMeansRipenessBands) -> None:
     """Reject invalid or internally inconsistent percentage thresholds."""
@@ -122,7 +115,6 @@ def _validate_ripeness_bands(bands: KMeansRipenessBands) -> None:
             "The secondary Ripe brown threshold must not be higher than "
             "the primary Ripe brown threshold."
         )
-
 
 def _classify(
     scores: dict[str, float],
@@ -183,7 +175,6 @@ def _classify(
         "Unripe, Ripe or Overripe patterns, so it is classified Rotten.",
     )
 
-
 def _confidence(category: str, scores: dict[str, float]) -> float:
     """Return a conservative 50-95 rule-support score, not a probability."""
     if category == "Unripe":
@@ -196,11 +187,9 @@ def _confidence(category: str, scores: dict[str, float]) -> float:
         support = scores["Brown"] + scores["Dark"] + scores["Other"]
     return 50.0 + 45.0 * float(np.clip(support, 0.0, 1.0))
 
-
 def _quality_damage_percent(scores: dict[str, float]) -> float:
     damage = (scores["Dark"] + 0.50 * scores["Brown"]) * 100.0
     return float(np.clip(damage, 0.0, 100.0))
-
 
 def _classify_quality(
     damage_percent: float,
@@ -211,7 +200,6 @@ def _classify_quality(
     if damage_percent >= bands.defect_min_damage_percent:
         return "Defect", f"K-means found high visible damage ({damage_percent:.2f}%)."
     return "Class_B", f"K-means found moderate visible damage ({damage_percent:.2f}%)."
-
 
 def _quality_confidence(
     quality: str,
@@ -238,7 +226,6 @@ def _quality_confidence(
 
     return 55.0 + 35.0 * float(np.clip(support, 0.0, 1.0))
 
-
 def _quality_values(
     scores: dict[str, float],
     bands: KMeansQualityBands,
@@ -247,7 +234,6 @@ def _quality_values(
     quality, reason = _classify_quality(damage, bands)
     confidence = _quality_confidence(quality, damage, bands)
     return quality, damage, confidence, reason
-
 
 def analyse_kmeans(
     rgb_image: np.ndarray,
@@ -349,7 +335,6 @@ def analyse_kmeans(
         quality_reason=quality_reason,
         quality_damage_percent=quality_damage,
     )
-
 
 def analyse_kmeans_quality(
     rgb_image: np.ndarray,
