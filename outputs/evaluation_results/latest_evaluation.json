@@ -8,7 +8,7 @@
     "Rotten"
   ],
   "status": "Ripeness evaluation completed for Morphology, HSV, K-means, GLCM Texture and Hybrid.",
-  "generated_at": "2026-09-05T00:49:03+08:00",
+  "generated_at": "2026-09-05T23:49:51+08:00",
   "dataset_split": "test",
   "dataset_directory": "dataset/ripeness/test",
   "image_count": 562,
@@ -28,7 +28,7 @@
       "status": "Completed",
       "overall_accuracy": 0.6886120996441281,
       "macro_f1": 0.6961540473126562,
-      "average_processing_time_ms": 65.10060195733102,
+      "average_processing_time_ms": 49.6883919926488,
       "successful_images": 562,
       "failed_images": 0,
       "per_class": {
@@ -110,7 +110,7 @@
       "status": "Completed",
       "overall_accuracy": 0.7775800711743772,
       "macro_f1": 0.7855000892396186,
-      "average_processing_time_ms": 60.7181638790759,
+      "average_processing_time_ms": 46.36905640530445,
       "successful_images": 562,
       "failed_images": 0,
       "per_class": {
@@ -190,9 +190,9 @@
       "approach": "K-means",
       "implemented": true,
       "status": "Completed",
-      "overall_accuracy": 0.5338078291814946,
-      "macro_f1": 0.5262709559832672,
-      "average_processing_time_ms": 155.9503601424225,
+      "overall_accuracy": 0.6298932384341637,
+      "macro_f1": 0.6455273343457165,
+      "average_processing_time_ms": 111.73058843375408,
       "successful_images": 562,
       "failed_images": 0,
       "per_class": {
@@ -274,7 +274,7 @@
       "status": "Completed",
       "overall_accuracy": 0.5925266903914591,
       "macro_f1": 0.5742204097467256,
-      "average_processing_time_ms": 46.71316192170674,
+      "average_processing_time_ms": 35.67362366523014,
       "successful_images": 562,
       "failed_images": 0,
       "per_class": {
@@ -354,9 +354,9 @@
       "approach": "Hybrid",
       "implemented": true,
       "status": "Completed",
-      "overall_accuracy": 0.8042704626334519,
-      "macro_f1": 0.8111437824666674,
-      "average_processing_time_ms": 215.80748594306397,
+      "overall_accuracy": 0.7935943060498221,
+      "macro_f1": 0.7995309973092365,
+      "average_processing_time_ms": 157.9170368325001,
       "successful_images": 562,
       "failed_images": 0,
       "per_class": {
