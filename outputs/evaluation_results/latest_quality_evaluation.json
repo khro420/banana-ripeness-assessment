@@ -7,7 +7,7 @@
     "Defect"
   ],
   "status": "Quality evaluation completed for Morphology, HSV, K-means GLCM Texture and Hybrid.",
-  "generated_at": "2026-09-04T17:51:55+08:00",
+  "generated_at": "2026-09-05T00:51:53+08:00",
   "dataset_split": "test",
   "dataset_directory": "dataset/quality/test",
   "image_count": 359,
@@ -26,7 +26,7 @@
       "status": "Completed",
       "overall_accuracy": 0.7325905292479109,
       "macro_f1": 0.7098661177396027,
-      "average_processing_time_ms": 46.16804123586329,
+      "average_processing_time_ms": 76.6280038996454,
       "successful_images": 359,
       "failed_images": 0,
       "per_class": {
@@ -90,7 +90,7 @@
       "status": "Completed",
       "overall_accuracy": 0.7019498607242339,
       "macro_f1": 0.6670501990195085,
-      "average_processing_time_ms": 42.57197576460836,
+      "average_processing_time_ms": 70.9625752088795,
       "successful_images": 359,
       "failed_images": 0,
       "per_class": {
@@ -154,7 +154,7 @@
       "status": "Completed",
       "overall_accuracy": 0.6796657381615598,
       "macro_f1": 0.6656974325607193,
-      "average_processing_time_ms": 129.78962924549342,
+      "average_processing_time_ms": 193.06333676871375,
       "successful_images": 359,
       "failed_images": 0,
       "per_class": {
@@ -218,7 +218,7 @@
       "status": "Completed",
       "overall_accuracy": 0.6880222841225627,
       "macro_f1": 0.5545718131925028,
-      "average_processing_time_ms": 35.01172924173015,
+      "average_processing_time_ms": 58.66329554314524,
       "successful_images": 359,
       "failed_images": 0,
       "per_class": {
@@ -282,7 +282,7 @@
       "status": "Completed",
       "overall_accuracy": 0.7576601671309192,
       "macro_f1": 0.7267796349936075,
-      "average_processing_time_ms": 167.32331671191417,
+      "average_processing_time_ms": 254.6009905292292,
       "successful_images": 359,
       "failed_images": 0,
       "per_class": {
