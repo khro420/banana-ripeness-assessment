@@ -19,10 +19,27 @@ COLOURS = ("Green", "Yellow", "Brown", "Dark", "Other")
 
 @dataclass(frozen=True)
 class KMeansRipenessBands:
-    unripe_green_score_min: float = 0.55
-    ripe_yellow_score_min: float = 0.55
-    overripe_brown_score_min: float = 0.18
-    rotten_dark_score_min: float = 0.18
+    """
+    Staged K-means colour rules expressed as percentages.
+
+    The damaged classes are deliberately not treated as a simple severity
+    ladder.  In the validation colour distributions, Overripe bananas have a
+    strong dark-peel response with limited unclassified peel, while Rotten
+    bananas are the more mixed residual pattern.  Checking Overripe before the
+    Rotten fallback prevents dark Overripe samples from being labelled Rotten.
+    """
+
+    unripe_min_green_percent: float = 50.0
+    unripe_max_brown_percent: float = 1.0
+
+    ripe_min_yellow_percent: float = 75.0
+    ripe_max_brown_percent: float = 7.5
+
+    overripe_min_dark_percent: float = 22.5
+    overripe_max_other_percent: float = 23.5
+
+    ripe_secondary_min_yellow_percent: float = 54.0
+    ripe_secondary_max_brown_percent: float = 6.0
 
 
 @dataclass(frozen=True)
@@ -87,75 +104,96 @@ def _calculate_colour_scores(segmentation: KMeansSegmentationResult) -> dict[str
     return scores
 
 
+def _validate_ripeness_bands(bands: KMeansRipenessBands) -> None:
+    """Reject invalid or internally inconsistent percentage thresholds."""
+
+    for name, value in vars(bands).items():
+        if not 0.0 <= value <= 100.0:
+            raise ValueError(f"{name} must be between 0 and 100.")
+
+    if bands.ripe_secondary_min_yellow_percent > bands.ripe_min_yellow_percent:
+        raise ValueError(
+            "The secondary Ripe yellow threshold must not be higher than "
+            "the primary Ripe yellow threshold."
+        )
+
+    if bands.ripe_secondary_max_brown_percent > bands.ripe_max_brown_percent:
+        raise ValueError(
+            "The secondary Ripe brown threshold must not be higher than "
+            "the primary Ripe brown threshold."
+        )
+
+
 def _classify(
     scores: dict[str, float],
     bands: KMeansRipenessBands,
 ) -> tuple[str, str]:
-    """Apply the original K=4 ripeness rules without changing their order."""
-    green = scores["Green"]
-    yellow = scores["Yellow"]
-    brown = scores["Brown"]
-    dark = scores["Dark"]
-    deteriorated = brown + dark
+    """Apply the validation-supported staged colour decision structure."""
 
-    if dark >= bands.rotten_dark_score_min and deteriorated >= 0.30:
-        return (
-            "Rotten",
-            "K-means detected a substantial proportion of dark and deteriorated peel regions.",
-        )
+    green = scores["Green"] * 100.0
+    yellow = scores["Yellow"] * 100.0
+    brown = scores["Brown"] * 100.0
+    dark = scores["Dark"] * 100.0
+    other = scores["Other"] * 100.0
 
-    if brown >= bands.overripe_brown_score_min or deteriorated >= 0.20:
-        return (
-            "Overripe",
-            "K-means detected noticeable brown or deteriorated peel regions.",
-        )
-
-    if green >= bands.unripe_green_score_min and green > yellow:
+    if (
+        green >= bands.unripe_min_green_percent
+        and brown <= bands.unripe_max_brown_percent
+    ):
         return (
             "Unripe",
-            "K-means detected green as the dominant banana-peel colour.",
+            f"K-means found {green:.2f}% green peel and only "
+            f"{brown:.2f}% brown peel, matching the Unripe rule.",
         )
 
-    if yellow >= bands.ripe_yellow_score_min and deteriorated < 0.20:
+    if (
+        yellow >= bands.ripe_min_yellow_percent
+        and brown <= bands.ripe_max_brown_percent
+    ):
         return (
             "Ripe",
-            "K-means detected predominantly yellow peel with little brown or dark deterioration.",
+            f"K-means found {yellow:.2f}% yellow peel while brown peel "
+            f"remained low at {brown:.2f}%, matching the primary Ripe rule.",
         )
 
-    if dark >= 0.15 and deteriorated >= 0.25:
-        return (
-            "Rotten",
-            "Dark peel regions together with substantial deterioration indicate an advanced stage.",
-        )
-
-    if deteriorated >= 0.15:
+    if (
+        dark >= bands.overripe_min_dark_percent
+        and other <= bands.overripe_max_other_percent
+    ):
         return (
             "Overripe",
-            "Brown and dark peel regions indicate increasing deterioration.",
+            f"K-means found {dark:.2f}% dark peel and {other:.2f}% "
+            "unclassified peel, matching the Overripe pattern.",
         )
 
-    if green > yellow:
+    if (
+        yellow >= bands.ripe_secondary_min_yellow_percent
+        and brown <= bands.ripe_secondary_max_brown_percent
+    ):
         return (
-            "Unripe",
-            "Green was the strongest remaining K-means peel-colour group.",
+            "Ripe",
+            f"K-means found {yellow:.2f}% yellow peel while brown peel "
+            f"remained low at {brown:.2f}%, matching the secondary Ripe rule.",
         )
 
     return (
-        "Ripe",
-        "Yellow was the strongest remaining K-means peel-colour group.",
+        "Rotten",
+        f"The K-means colour mixture ({brown:.2f}% brown, {dark:.2f}% "
+        f"dark and {other:.2f}% unclassified) does not match the calibrated "
+        "Unripe, Ripe or Overripe patterns, so it is classified Rotten.",
     )
 
 
 def _confidence(category: str, scores: dict[str, float]) -> float:
-    """Return the same 50-95 rule-support score as the original code."""
+    """Return a conservative 50-95 rule-support score, not a probability."""
     if category == "Unripe":
-        support = scores["Green"]
+        support = 0.75 * scores["Green"] + 0.25 * (1.0 - scores["Brown"])
     elif category == "Ripe":
-        support = scores["Yellow"]
+        support = 0.75 * scores["Yellow"] + 0.25 * (1.0 - scores["Brown"])
     elif category == "Overripe":
-        support = scores["Brown"] + 0.30 * scores["Dark"]
+        support = 0.75 * scores["Dark"] + 0.25 * (1.0 - scores["Other"])
     else:
-        support = scores["Dark"] + 0.30 * scores["Brown"]
+        support = scores["Brown"] + scores["Dark"] + scores["Other"]
     return 50.0 + 45.0 * float(np.clip(support, 0.0, 1.0))
 
 
@@ -222,6 +260,7 @@ def analyse_kmeans(
     parameters = parameters or KMeansParameters()
     bands = bands or KMeansRipenessBands()
     quality_bands = quality_bands or KMeansQualityBands()
+    _validate_ripeness_bands(bands)
 
     segmentation = segment_kmeans_colours(
         rgb_image=rgb_image,
@@ -284,8 +323,9 @@ def analyse_kmeans(
             "K-means clustering is applied only to pixels inside the shared banana mask.",
             "The algorithm automatically groups similar banana-peel colours.",
             "The resulting K-means cluster centroids are interpreted as green, yellow, brown, dark or other.",
-            "The proportions of the interpreted clusters are used to determine the ripeness category.",
+            "The proportions of the interpreted clusters are evaluated using staged colour rules.",
             "HSV is used only to interpret the K-means cluster centroids and is not used to perform the clustering.",
+            "Overripe is identified by strong dark-cluster coverage with limited unclassified peel; Rotten is the residual damaged colour mixture.",
             "The final category is Unripe, Ripe, Overripe or Rotten.",
             "Quality is checked only when the K-means ripeness prediction is Ripe.",
             "Quality reuses the same Brown and Dark K-means clusters; no morphology blemish mask is used.",
