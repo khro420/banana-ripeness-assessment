@@ -47,17 +47,24 @@ with st.expander("View K-means decision rules"):
         f"""
         Rules are checked in this order:
 
-        1. **Rotten:** dark cluster score ≥
-           {bands.rotten_dark_score_min * 100:.1f}%.
+        1. **Unripe:** green cluster coverage ≥
+           {bands.unripe_min_green_percent:.1f}% and brown coverage ≤
+           {bands.unripe_max_brown_percent:.1f}%.
 
-        2. **Overripe:** brown cluster score ≥
-           {bands.overripe_brown_score_min * 100:.1f}%.
+        2. **Primary Ripe:** yellow cluster coverage ≥
+           {bands.ripe_min_yellow_percent:.1f}% and brown coverage ≤
+           {bands.ripe_max_brown_percent:.1f}%.
 
-        3. **Unripe:** green cluster score ≥
-           {bands.unripe_green_score_min * 100:.1f}%.
+        3. **Overripe:** dark cluster coverage ≥
+           {bands.overripe_min_dark_percent:.1f}% and unclassified coverage ≤
+           {bands.overripe_max_other_percent:.1f}%.
 
-        4. **Ripe:** yellow cluster score ≥
-           {bands.ripe_yellow_score_min * 100:.1f}%.
+        4. **Secondary Ripe:** yellow cluster coverage ≥
+           {bands.ripe_secondary_min_yellow_percent:.1f}% and brown coverage ≤
+           {bands.ripe_secondary_max_brown_percent:.1f}%.
+
+        5. **Rotten:** fallback for the remaining mixed, deteriorated colour
+           patterns.
 
         **Ripe-only quality**
 
