@@ -1,25 +1,23 @@
+import sys
 from pathlib import Path
 from time import perf_counter
 
 import pandas as pd
 from PIL import Image, ImageOps, UnidentifiedImageError
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(PROJECT_ROOT))
+
 from branches.morphology.morphology_analysis import (
     QualityBands,
-    RipenessBands,
-    analyse_morphology,
+    analyse_morphology_quality,
 )
 from branches.morphology.morphology_segmentation import MorphologyParameters
 from core.banana_segmentation import segment_banana
-from core.evaluation import (
-    PROJECT_ROOT,
-    discover_quality_split_images,
-    ensure_quality_split_manifest,
-)
 from core.image_handling import standardise_image
 
 
-OUTPUT_DIRECTORY = PROJECT_ROOT / "outputs" / "morphology_quality_validation"
+OUTPUT_DIRECTORY = PROJECT_ROOT / "outputs" / "development" / "morphology_quality_validation"
 DETAIL_FILE = OUTPUT_DIRECTORY / "morphology_quality_validation_features.csv"
 FEATURE_SUMMARY_FILE = OUTPUT_DIRECTORY / "morphology_quality_feature_summary.csv"
 CATEGORY_SUMMARY_FILE = OUTPUT_DIRECTORY / "morphology_quality_category_summary.csv"
@@ -35,6 +33,12 @@ FEATURE_COLUMNS = (
     "largest_patch_mean_intensity",
 )
 QUALITY_ORDER = ("Class_A", "Class_B", "Defect")
+QUALITY_FOLDER_TO_CATEGORY = {
+    "class_a": "Class_A",
+    "class_b": "Class_B",
+    "defect": "Defect",
+}
+VALIDATION_DIRECTORY = PROJECT_ROOT / "dataset" / "quality" / "valid"
 
 
 class QualityValidationError(RuntimeError):
@@ -80,7 +84,6 @@ def _analyse_image(
     path: Path,
     actual_quality: str,
     morphology_parameters: MorphologyParameters,
-    ripeness_bands: RipenessBands,
     quality_bands: QualityBands,
 ) -> dict:
     record = _empty_record(path, actual_quality)
@@ -108,33 +111,27 @@ def _analyse_image(
             record["error"] = f"Foreground segmentation failed: {segmentation.message}"
             return record
 
-        analysis = analyse_morphology(
+        analysis = analyse_morphology_quality(
             rgb_image=prepared.working_rgb,
             banana_mask=segmentation.final_mask,
             parameters=morphology_parameters,
-            bands=ripeness_bands,
             quality_bands=quality_bands,
-            assume_ripe_for_quality=True,
         )
+
+        features = analysis.features
 
         record.update(
             {
-                "predicted_quality": analysis.quality_category,
-                "correct": analysis.quality_category == actual_quality,
+                "predicted_quality": analysis.predicted_quality,
+                "correct": analysis.predicted_quality == actual_quality,
                 "total_dark_percentage": analysis.total_dark_percentage,
-                "largest_dark_patch_percentage": (
-                    analysis.largest_dark_patch_percentage
-                ),
-                "concentration_ratio_percentage": analysis.concentration_ratio,
-                "dark_region_spread_percentage": analysis.dark_region_spread,
-                "dark_component_count": analysis.dark_component_count,
-                "extreme_dark_percentage": analysis.extreme_dark_percentage,
-                "largest_patch_mean_intensity": (
-                    analysis.largest_patch_mean_intensity
-                ),
-                "quality_confidence_percent": (
-                    analysis.quality_confidence_percent
-                ),
+                "largest_dark_patch_percentage": features.get("Largest dark patch (%)"),
+                "concentration_ratio_percentage": features.get("Concentration ratio (%)"),
+                "dark_region_spread_percentage": features.get("Dark-region spread (%)"),
+                "dark_component_count": features.get("Dark component count"),
+                "extreme_dark_percentage": features.get("Extreme-dark percentage (%)"),
+                "largest_patch_mean_intensity": features.get("Largest-patch mean intensity"),
+                "quality_confidence_percent": analysis.confidence_percent,
                 "banana_area_percent": segmentation.banana_area_percent,
                 "morphology_time_ms": analysis.processing_time_ms,
                 "status": "Completed",
@@ -205,15 +202,18 @@ def _category_summary(results: pd.DataFrame) -> pd.DataFrame:
 
 def main() -> None:
     OUTPUT_DIRECTORY.mkdir(parents=True, exist_ok=True)
-    manifest = ensure_quality_split_manifest()
-    images = discover_quality_split_images("validation")
+    images = [
+        {"path": path, "actual_label": category}
+        for folder, category in QUALITY_FOLDER_TO_CATEGORY.items()
+        for path in sorted((VALIDATION_DIRECTORY / folder).glob("*"))
+        if path.is_file()
+    ]
     morphology_parameters = MorphologyParameters()
-    ripeness_bands = RipenessBands()
     quality_bands = QualityBands()
     records: list[dict] = []
 
     print("Morphology ripe-banana quality validation exporter", flush=True)
-    print(f"Fixed split manifest: {manifest}", flush=True)
+    print(f"Validation directory: {VALIDATION_DIRECTORY}", flush=True)
     print(f"Validation images: {len(images)}", flush=True)
     print("The manifest test rows are not read by this script.\n", flush=True)
 
@@ -229,7 +229,6 @@ def main() -> None:
                     item["path"],
                     item["actual_label"],
                     morphology_parameters,
-                    ripeness_bands,
                     quality_bands,
                 )
             )

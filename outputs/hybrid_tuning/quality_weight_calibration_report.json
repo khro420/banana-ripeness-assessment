@@ -1,0 +1,101 @@
+{
+  "records": 839,
+  "split": {
+    "calibration": 629,
+    "holdout": 210,
+    "random_state": 2026
+  },
+  "baseline": {
+    "weights": {
+      "Class_A": {
+        "morphology": 0.35,
+        "hsv": 0.25,
+        "kmeans": 0.25,
+        "glcm": 0.15
+      },
+      "Class_B": {
+        "morphology": 0.35,
+        "hsv": 0.3,
+        "kmeans": 0.2,
+        "glcm": 0.15
+      },
+      "Defect": {
+        "morphology": 0.35,
+        "hsv": 0.25,
+        "kmeans": 0.2,
+        "glcm": 0.2
+      }
+    },
+    "calibration": {
+      "accuracy": 0.761526,
+      "macro_f1": 0.716836
+    },
+    "holdout": {
+      "accuracy": 0.780952,
+      "macro_f1": 0.751236
+    }
+  },
+  "candidate": {
+    "weights": {
+      "Class_A": {
+        "morphology": 0.251783,
+        "hsv": 0.62793,
+        "kmeans": 0.039531,
+        "glcm": 0.080756
+      },
+      "Class_B": {
+        "morphology": 0.169535,
+        "hsv": 0.478268,
+        "kmeans": 0.295064,
+        "glcm": 0.057133
+      },
+      "Defect": {
+        "morphology": 0.552871,
+        "hsv": 0.188135,
+        "kmeans": 0.065311,
+        "glcm": 0.193683
+      }
+    },
+    "calibration": {
+      "accuracy": 0.769475,
+      "macro_f1": 0.742355
+    },
+    "holdout": {
+      "accuracy": 0.77619,
+      "macro_f1": 0.761988
+    }
+  },
+  "balanced_candidate": {
+    "weights": {
+      "Class_A": {
+        "morphology": 0.537198,
+        "hsv": 0.247865,
+        "kmeans": 0.00394,
+        "glcm": 0.210997
+      },
+      "Class_B": {
+        "morphology": 0.414078,
+        "hsv": 0.011512,
+        "kmeans": 0.100778,
+        "glcm": 0.473632
+      },
+      "Defect": {
+        "morphology": 0.104211,
+        "hsv": 0.261883,
+        "kmeans": 0.351,
+        "glcm": 0.282906
+      }
+    },
+    "calibration": {
+      "accuracy": 0.779014,
+      "macro_f1": 0.735026
+    },
+    "holdout": {
+      "accuracy": 0.780952,
+      "macro_f1": 0.751236
+    }
+  },
+  "accepted": false,
+  "balanced_candidate_accepted": false,
+  "acceptance_rule": "Holdout macro F1 improves by at least 0.5 percentage points with no holdout accuracy decrease."
+}

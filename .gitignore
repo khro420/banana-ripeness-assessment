@@ -62,12 +62,14 @@ evaluation_exports/
 exported_results/
 
 # Reproducible experiment artifacts. Keep final reports, not raw predictions.
+outputs/development/
 outputs/morphology_tuning/
 outputs/morphology_quality_tuning/
 outputs/morphology_quality_tuning_70_30/
 outputs/hybrid_tuning/*
 !outputs/hybrid_tuning/weight_calibration_report.json
 !outputs/hybrid_tuning/test_weight_evaluation.json
+!outputs/hybrid_tuning/quality_weight_calibration_report.json
 
 # Generated HSV validation exports
 outputs/hsv_validation/

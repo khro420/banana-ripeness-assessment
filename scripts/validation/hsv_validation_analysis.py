@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 from time import perf_counter
 
@@ -10,9 +11,10 @@ from core.banana_segmentation import segment_banana
 from core.image_handling import standardise_image
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent
-VALID_DIRECTORY = PROJECT_ROOT / "dataset" / "valid"
-OUTPUT_DIRECTORY = PROJECT_ROOT / "outputs" / "hsv_validation"
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(PROJECT_ROOT))
+VALID_DIRECTORY = PROJECT_ROOT / "dataset" / "ripeness" / "valid"
+OUTPUT_DIRECTORY = PROJECT_ROOT / "outputs" / "development" / "hsv_validation"
 
 DETAIL_FILE = OUTPUT_DIRECTORY / "hsv_validation_features.csv"
 SUMMARY_FILE = OUTPUT_DIRECTORY / "hsv_validation_summary.csv"
