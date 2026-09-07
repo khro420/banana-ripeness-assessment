@@ -274,6 +274,12 @@ else:
         height=max(260, 58 * len(processing_time)),
     )
 
+st.markdown("#### Per-class F1-score comparison")
+st.caption(
+    "F1-score comparison across approaches for each "
+    f"{class_axis_title.lower()}."
+)
+
 method_order = [METHODS[key] for key in evaluated_keys]
 f1_matrix = per_class.pivot(index="Approach", columns="Category", values="F1").reindex(index=method_order, columns=list(categories))
 f1_figure = px.imshow(
