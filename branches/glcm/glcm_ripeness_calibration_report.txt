@@ -1,0 +1,31 @@
+GLCM RIPENESS CALIBRATION REPORT
+======================================================================
+
+Validation accuracy: 64.47%
+
+RULES FOUND:
+----------------------------------------------------------------------
+
+UNRIPE RULE (three-feature):
+  homogeneity >= 0.959532
+  AND energy <= 0.427336
+  AND correlation >= 0.938309
+  Binary accuracy: 92.88%
+
+ROTTEN RULE (three-feature):
+  contrast >= 0.194085
+  AND homogeneity >= 0.760906
+  AND correlation >= 0.814267
+  Binary accuracy: 82.28%
+
+OVERRIPE RULE (four-feature):
+  contrast <= 0.211495
+  AND homogeneity <= 0.945854
+  AND energy <= 0.381516
+  AND correlation <= 0.897792
+  Binary accuracy: 83.88%
+
+======================================================================
+NOTE: These rules are from the VALIDATION set only.
+Do NOT use the test set to choose thresholds.
+======================================================================

@@ -1,0 +1,22 @@
+GLCM QUALITY CALIBRATION REPORT
+============================================================
+
+Validation accuracy: 0.7247
+Total samples: 839
+
+Defect rule:
+  homogeneity <= 0.896765
+  AND correlation <= 0.924271
+  F1: 0.8576, Support: 322
+
+Class_A rule:
+  dissimilarity <= 0.199113
+  AND homogeneity >= 0.903952
+  F1: 0.8138, Support: 461
+
+Priority order:
+  1. Defect
+  2. Class_A
+  3. Class_B fallback
+
+============================================================
