@@ -1,5 +1,4 @@
-"""Student-style GLCM texture analysis.
-
+"""
 Steps:
 1. Load image and banana mask
 2. Convert to grayscale and quantise to 8 levels
@@ -161,6 +160,21 @@ def _calc_features(glcm):
         correlation = float(np.sum((i - mean_x) * (j - mean_y) * glcm) / (std_x * std_y))
 
     return contrast, dissimilarity, homogeneity, energy, correlation
+
+
+def quantise_image(greyscale, mask, levels):
+    """Public wrapper for _quantise — used by CSV generator scripts."""
+    return _quantise(greyscale, mask, levels)
+
+
+def build_glcm(quantised, mask, levels, distance, angle):
+    """Public wrapper for _build_glcm — used by CSV generator scripts."""
+    return _build_glcm(quantised, mask, levels, distance, angle)
+
+
+def calculate_glcm_features(glcm):
+    """Public wrapper for _calc_features — used by CSV generator scripts."""
+    return _calc_features(glcm)
 
 
 def extract_glcm_features(rgb_image, banana_mask, parameters=None):
